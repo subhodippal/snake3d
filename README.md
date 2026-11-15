@@ -7,7 +7,10 @@ A 3D snake game that runs in the browser. It is built with [Three.js](https://th
   - **Adventure**: 10 levels, each on its own map. To clear a level you must eat a set number of 🍎 apples **and** ★ special fruits. You earn up to 3 stars per level, based on the health you have left.
   - **Endless**: no goal; the snake keeps speeding up. Pick any of the 10 maps.
   - **Time Attack**: 90 seconds to score as much as you can. Every apple adds 1.5 seconds.
-- **10 maps**: Green Meadow, Desert Dunes, Frozen Lake, Autumn Forest, Sunny Beach, Lava Caverns, Candy Land, Neon City, Crystal Cave and Cosmic Void.
+- **Open 3D worlds instead of a board**: every level is a large full-screen landscape with rolling hills, fenced in by a **bamboo fence**. The camera follows the snake, a red arrow and a minimap point to the next apple.
+- **Rivers and bridges**: snakes can't swim here! Rivers wind through each map, and you must cross them on wooden (or stone road) bridges. Hitting the water or the fence costs health.
+- **10 environments**: Green Meadow, Wild Jungle, Sandy Shores, Rocky Valley, Rolling Hills, Snowy Peaks (with snowfall), Country Road (sunset, street lamps, cars), Fun Playground (swings, slides, seesaws, sandpits), Torch Cave and Temple Night. The two dark levels are lit by flickering fire torches (with real lights and embers), and the temple has fireflies.
+- **Harmless wildlife**: monkeys, parrots, birds, eagles, seagulls, deer, rabbits, sheep, goats, turtles on the sand, crabs, frogs, lizards, penguins, ducks on the river, jumping fish, bats, dogs, cats, squirrels, pigeons and butterflies. They wander around and scurry away from the snake.
 - **9 special fruits**
 
   | Fruit | Effect |
@@ -81,14 +84,17 @@ icons/            app icons (SVG source + PNG sizes, maskable, Apple touch)
 index.html        page, menus, HUD (Three.js loaded from a CDN through an import map)
 css/style.css     UI styling
 js/main.js        app bootstrap, menus, HUD, save data
-js/game.js        game engine: world, grid logic, fruits, enemies, camera, animation
-js/levels.js      fruits, map themes, levels, map layouts
-js/models.js      procedural 3D models (snake head, fruits, slimes, obstacles)
+js/game.js        game engine: grid logic, fruits, enemies, camera, minimap, animation
+js/levels.js      fruits, environment themes, levels
+js/mapgen.js      terrain heights, rivers, bridges, roads, obstacle placement
+js/world.js       builds the 3D world: terrain, water, bamboo fence, props, decor, torches/lights, weather
+js/animals.js     harmless ambient wildlife (models + behaviour)
+js/models.js      procedural 3D models (snake head, fruits, slimes, props, bridges)
 js/input.js       keyboard / swipe / D-pad input with hold-to-sprint
 js/audio.js       synthesized sound effects
 js/fx.js          instanced particle system
 ```
 
 ## Customizing
-- **Levels:** edit `LEVELS` in `js/levels.js`. Each level sets its map, grid size, apple target, special-fruit target, speed, enemy count and allowed fruits.
-- **Maps:** add a theme to `THEMES` and a layout `case` to `makeLayout()`.
+- **Levels:** edit `LEVELS` in `js/levels.js`. Each level sets its environment, world size, apple target, special-fruit target, speed, enemy count and allowed fruits.
+- **Environments:** add a theme to `THEMES` in `js/levels.js`. A theme sets colours, hills, rivers (`axis`, `pos`, `width`, number of `bridges`), roads, obstacles, decor, animals, and options such as `dark`, `fenceTorches`, `snowfall` or `fireflies`. Obstacle kinds live in `models.js` (with footprints in `mapgen.js`), and animal kinds in `animals.js`.

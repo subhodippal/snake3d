@@ -105,19 +105,26 @@ function showIntro(cfg) {
     const fresh = L.fruits.filter(f => !prev.includes(f));
     html = `<h3>Level ${cfg.level + 1} · ${T.emoji} ${T.name}</h3>
       <p>Eat <b>🍎 ${L.target}</b> apples and <b>★ ${L.special}</b> special fruit${L.special > 1 ? 's' : ''}</p>
+      <p class="tip">${themeTip(T)}</p>
       ${L.enemies ? `<p>👾 Watch out for ${L.enemies} slime${L.enemies > 1 ? 's' : ''}!</p>` : ''}
       ${fresh.length ? `<div class="new">New: ${fresh.map(f => `${FRUITS[f].emoji} ${FRUITS[f].name}`).join(' · ')}</div>` : ''}`;
   } else {
     const T = THEMES[LEVELS[cfg.map].map];
     html = cfg.mode === 'endless'
-      ? `<h3>∞ Endless · ${T.emoji} ${T.name}</h3><p>Grow as long as you can. It gets faster!</p>`
-      : `<h3>⏱ Time Attack · ${T.emoji} ${T.name}</h3><p>Score as much as you can in 90 seconds. Apples add +1.5s.</p>`;
+      ? `<h3>∞ Endless · ${T.emoji} ${T.name}</h3><p>Grow as long as you can. It gets faster!</p><p class="tip">${themeTip(T)}</p>`
+      : `<h3>⏱ Time Attack · ${T.emoji} ${T.name}</h3><p>Score as much as you can in 90 seconds. Apples add +1.5s.</p><p class="tip">${themeTip(T)}</p>`;
   }
   const hint = coarse
     ? (save.control === 'buttons' ? 'D-pad to turn · hold a button or 💨 to sprint' : 'Swipe to turn · tap & hold to sprint')
     : 'Arrows / WASD to turn · hold direction or Space to sprint';
   el.innerHTML = html + `<div class="hint">${hint}</div>`;
   el.classList.remove('hidden');
+}
+
+function themeTip(T) {
+  if (T.dark) return '🔥 Follow the torchlight · 🌉 cross the river on bridges';
+  if (T.roads) return '🛣️ Roads are safe · 🌉 use the road bridges over the river';
+  return '🌉 Rivers can only be crossed on bridges · 🎋 don’t hit the fence';
 }
 
 // ── Level select ────────────────────────────────────────────
@@ -134,7 +141,7 @@ function renderLevels(mode) {
     const locked = mode === 'adventure' && i >= save.unlocked;
     const b = document.createElement('button');
     b.className = 'lvl' + (locked ? ' locked' : '');
-    b.style.background = `linear-gradient(rgba(0,0,0,.12), rgba(0,0,0,.42)), linear-gradient(160deg, ${T.groundA}, ${hex(T.wall)})`;
+    b.style.background = `linear-gradient(rgba(0,0,0,.12), rgba(0,0,0,.42)), linear-gradient(160deg, ${T.card[0]}, ${T.card[1]})`;
     const stars = save.stars[i] || 0;
     b.innerHTML = `<span class="num">${mode === 'adventure' ? 'Level ' + (i + 1) : 'Map ' + (i + 1)}</span>
       <span class="emo">${T.emoji}</span><span class="nm">${T.name}</span>
@@ -290,7 +297,8 @@ async function installApp() {
 
 // ── HUD ─────────────────────────────────────────────────────
 let hudCache = {};
-let effectsT = 0;
+let effectsT = 0, minimapT = 0;
+const mmCanvas = $('#minimap'), mmCtx = mmCanvas.getContext('2d');
 function setText(id, txt) { if (hudCache[id] !== txt) { hudCache[id] = txt; $(id).textContent = txt; } }
 
 function updateHud(dt) {
@@ -319,6 +327,9 @@ function updateHud(dt) {
   timer.classList.toggle('hidden', s.timeLeft === null);
   if (s.timeLeft !== null) setText('#hud-timer', `⏱ ${Math.ceil(s.timeLeft)}`);
   $('#sprint-badge').classList.toggle('on', !!s.sprint);
+
+  minimapT -= dt;
+  if (minimapT <= 0) { minimapT = .1; game.drawMinimap(mmCtx, mmCanvas.width); }
 
   effectsT -= dt;
   if (effectsT <= 0) {

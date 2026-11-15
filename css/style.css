@@ -143,6 +143,13 @@ h3 { margin: 10px 0 4px; }
 }
 .chip .e { font-size: 18px; }
 .chip i { position: absolute; left: 0; bottom: 0; height: 3px; background: var(--c); }
+#minimap {
+  position: absolute; right: 10px; top: calc(78px + var(--safe-top)); width: 132px; height: 132px; border-radius: 14px;
+  border: 2px solid rgba(255, 255, 255, .35); box-shadow: 0 6px 18px rgba(0, 0, 0, .35); background: rgba(10, 14, 36, .5);
+  image-rendering: pixelated; opacity: .92;
+}
+@media (max-width: 560px), (max-height: 520px) { #minimap { width: 96px; height: 96px; } }
+.intro .tip { font-size: 13px; color: #bfe8ff; }
 .sprint-badge {
   position: absolute; left: 50%; bottom: calc(24px + var(--safe-bottom)); transform: translateX(-50%) scale(.8); opacity: 0;
   background: rgba(255, 255, 255, .9); color: #1a2040; font-weight: 700; padding: 4px 14px; border-radius: 999px; transition: all .15s; font-size: 14px;
@@ -161,7 +168,14 @@ h3 { margin: 10px 0 4px; }
 .d.up { left: 61px; top: 0; } .d.down { left: 61px; bottom: 0; } .d.left { left: 0; top: 61px; } .d.right { right: 0; top: 61px; }
 .boost { right: calc(22px + env(safe-area-inset-right, 0px)); bottom: calc(40px + var(--safe-bottom)); width: 96px; height: 96px; border-radius: 50%; font-size: 30px; display: flex; flex-direction: column; align-items: center; justify-content: center; }
 .boost small { font-size: 11px; font-weight: 700; letter-spacing: 1px; }
-body.dpad-on .sprint-badge { bottom: calc(150px + var(--safe-bottom)); }
+body.dpad-on #minimap {
+  position: absolute; right: 10px; top: calc(78px + var(--safe-top)); width: 132px; height: 132px; border-radius: 14px;
+  border: 2px solid rgba(255, 255, 255, .35); box-shadow: 0 6px 18px rgba(0, 0, 0, .35); background: rgba(10, 14, 36, .5);
+  image-rendering: pixelated; opacity: .92;
+}
+@media (max-width: 560px), (max-height: 520px) { #minimap { width: 96px; height: 96px; } }
+.intro .tip { font-size: 13px; color: #bfe8ff; }
+.sprint-badge { bottom: calc(150px + var(--safe-bottom)); }
 
 /* ── Overlays ───────────────────────────────── */
 .countdown {

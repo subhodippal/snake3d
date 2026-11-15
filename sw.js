@@ -5,7 +5,7 @@
 //  • CDN libraries & fonts: cache-first (they are versioned / immutable).
 //  Bump VERSION when you want to force-clear old caches.
 // ───────────────────────────────────────────────────────────
-const VERSION = 'slither3d-v1';
+const VERSION = 'slither3d-v2';
 const CORE = [
   './',
   './index.html',
@@ -17,6 +17,9 @@ const CORE = [
   './js/input.js',
   './js/audio.js',
   './js/fx.js',
+  './js/mapgen.js',
+  './js/world.js',
+  './js/animals.js',
   './manifest.webmanifest',
   './icons/icon.svg',
   './icons/icon-192.png',

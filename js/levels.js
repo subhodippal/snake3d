@@ -1,5 +1,5 @@
 // ───────────────────────────────────────────────────────────
-//  Data: special fruits, map themes, levels and map layouts
+//  Data: special fruits, world themes (environments) and levels
 // ───────────────────────────────────────────────────────────
 
 export const FRUITS = {
@@ -15,27 +15,148 @@ export const FRUITS = {
 };
 export const ALL_FRUITS = Object.keys(FRUITS);
 
+// Each theme is a full environment: terrain, water, obstacles, decor, animals and lighting.
+//  rivers: axis = direction the river flows ('x' runs left→right, 'z' runs top→bottom)
+//          pos = 0..1 across the map, amp/freq = meander, width in cells, bridges = count
+//  obstacles: [kind, count]   (kinds are in models.js → OBSTACLES)
+//  animals:   [kind, count]   (kinds are in animals.js)
 export const THEMES = [
-  { name: 'Green Meadow', emoji: '🌿', sky: 0x8fd3ff, fog: 0xbfe6ff, groundA: '#86d45e', groundB: '#79c752', line: 'rgba(0,0,0,.06)',
-    outside: 0x5fae45, wall: 0x3d8b37, wallTop: 0x6cc85a, obstacle: 'bush', decor: 'tree', enemy: 0x9b4dff, sun: 2.6, hemi: 1.1, hemiGround: 0x4b7a32 },
-  { name: 'Desert Dunes', emoji: '🏜️', sky: 0xffcf8a, fog: 0xffdca8, groundA: '#f2d28c', groundB: '#e8c47c', line: 'rgba(120,70,0,.08)',
-    outside: 0xe3b770, wall: 0xb9804a, wallTop: 0xe0a466, obstacle: 'cactus', decor: 'cactus', enemy: 0xe0452b, sun: 2.9, sunColor: 0xfff0d0, hemi: 1.1, hemiGround: 0x9a7040 },
-  { name: 'Frozen Lake', emoji: '❄️', sky: 0xbfe3ff, fog: 0xe6f4ff, groundA: '#eef7ff', groundB: '#dcecfa', line: 'rgba(40,90,160,.08)',
-    outside: 0xf4faff, wall: 0x8fc3e6, wallTop: 0xe0f4ff, obstacle: 'ice', decor: 'pine', enemy: 0x2f6bff, sun: 2.2, hemi: 1.0, hemiGround: 0x9ab8d0 },
-  { name: 'Autumn Forest', emoji: '🍂', sky: 0xffb98a, fog: 0xf0b080, groundA: '#b8913f', groundB: '#a98436', line: 'rgba(0,0,0,.07)',
-    outside: 0x8f6c2c, wall: 0x6b4523, wallTop: 0x9a6634, obstacle: 'autumn', decor: 'autumn', enemy: 0x6a1b9a, sun: 2.5, sunColor: 0xffd2a0, hemi: 1.0, hemiGround: 0x6a4a20 },
-  { name: 'Sunny Beach', emoji: '🏖️', sky: 0x6fd0ff, fog: 0xa8e6ff, groundA: '#ffe7a8', groundB: '#f6da93', line: 'rgba(120,80,0,.07)',
-    outside: 0x1e9bd7, water: true, wall: 0xd6ad66, wallTop: 0xf6d690, obstacle: 'palm', decor: 'palm', enemy: 0xff3d7f, sun: 2.8, hemi: 1.1, hemiGround: 0x6aa0b0 },
-  { name: 'Lava Caverns', emoji: '🌋', sky: 0x1c0603, fog: 0x2c0a05, groundA: '#4a3434', groundB: '#3f2c2c', line: 'rgba(255,90,0,.10)',
-    outside: 0xff4a00, lava: true, wall: 0x2a1a1a, wallTop: 0xff6a00, obstacle: 'obsidian', decor: 'obsidian', enemy: 0xffd000, sun: 1.6, sunColor: 0xffa070, hemi: .7, hemiSky: 0xff9a70, hemiGround: 0x401010 },
-  { name: 'Candy Land', emoji: '🍭', sky: 0xffc8ea, fog: 0xffd8f0, groundA: '#fff0f7', groundB: '#ffe0ef', line: 'rgba(255,80,160,.10)',
-    outside: 0xb8ecff, wall: 0xff6fb5, wallTop: 0xffffff, obstacle: 'lollipop', decor: 'lollipop', enemy: 0x00b3a4, sun: 2.4, hemi: 1.15, hemiGround: 0xd090c0 },
-  { name: 'Neon City', emoji: '🌃', sky: 0x0b0822, fog: 0x150c38, groundA: '#1d1a3c', groundB: '#221e46', line: 'rgba(0,229,255,.22)',
-    outside: 0x0d0b22, neon: true, wall: 0x00c8ff, wallTop: 0xff2bd6, obstacle: 'building', decor: 'building', enemy: 0xff2bd6, sun: 1.2, sunColor: 0xb0a0ff, hemi: .8, hemiSky: 0x8080ff, hemiGround: 0x201040 },
-  { name: 'Crystal Cave', emoji: '💎', sky: 0x150d2c, fog: 0x22163f, groundA: '#3b2f5e', groundB: '#342954', line: 'rgba(170,140,255,.12)',
-    outside: 0x251b42, wall: 0x5b42a8, wallTop: 0xb59cff, obstacle: 'crystal', decor: 'crystal', enemy: 0x00e0a0, sun: 1.5, sunColor: 0xd0c0ff, hemi: .9, hemiSky: 0xa090ff, hemiGround: 0x201040 },
-  { name: 'Cosmic Void', emoji: '🌌', sky: 0x03020c, fog: 0x060420, groundA: '#1c1645', groundB: '#16123c', line: 'rgba(124,77,255,.22)',
-    space: true, outside: 0x000000, wall: 0x7c4dff, wallTop: 0x00e5ff, obstacle: 'asteroid', decor: 'asteroid', enemy: 0xff6e40, sun: 1.8, hemi: .9, hemiSky: 0x9090ff, hemiGround: 0x100830 },
+  {
+    key: 'meadow', name: 'Green Meadow', emoji: '🌿', card: ['#8fd86a', '#2f7d3a'],
+    sky: 0x9fd8ff, fog: 0xc4e8ff, fogNear: 30, fogFar: 75,
+    hemi: 1.05, hemiSky: 0xdff2ff, hemiGround: 0x4b7a32, sun: 2.7, sunColor: 0xfff4dc,
+    ground: { a: '#7fcd52', b: '#6ab944', high: '#93d465', bank: '#c9b27a', bed: '#5a6b4a', cliff: '#4f8a3a', rock: '#8a8f86' },
+    hills: { amp: 0.9, freq: 0.07 }, rise: 5,
+    water: { color: 0x3aa6e0, opacity: 0.82 },
+    rivers: [{ axis: 'x', pos: 0.56, amp: 3, freq: 0.11, width: 3, bridges: 3 }],
+    obstacles: [['tree', 26], ['bush', 30], ['rock', 14], ['log', 6], ['flowerBush', 12]],
+    decor: { tufts: ['#5daa3c', '#78c24f', '#4e9c34'], tuftCount: 1800, flowers: 380, pebbles: 120, lily: true, reeds: true },
+    outside: ['tree', 'tree', 'bush', 'pine'], outsideCount: 260,
+    animals: [['rabbit', 5], ['deer', 3], ['bird', 7], ['butterfly', 9], ['duck', 4], ['frog', 3], ['fish', 3]],
+  },
+  {
+    key: 'jungle', name: 'Wild Jungle', emoji: '🌴', card: ['#3fae5a', '#124d2a'],
+    sky: 0x9ee0c8, fog: 0xa9d9b8, fogNear: 22, fogFar: 62,
+    hemi: 0.95, hemiSky: 0xd8ffe8, hemiGround: 0x2d5a24, sun: 2.3, sunColor: 0xfff0c8,
+    ground: { a: '#4f9a35', b: '#3f862b', high: '#5aa83c', bank: '#7a6a3c', bed: '#3a4a30', cliff: '#2f6a2a', rock: '#6a7060' },
+    hills: { amp: 1.0, freq: 0.08 }, rise: 7,
+    water: { color: 0x3c9a8a, opacity: 0.85 },
+    rivers: [{ axis: 'x', pos: 0.5, amp: 4, freq: 0.09, width: 3, bridges: 3 }],
+    obstacles: [['jungleTree', 34], ['bamboo', 18], ['palm', 10], ['rock', 10], ['bush', 20], ['log', 6]],
+    decor: { tufts: ['#3d8a2a', '#59a83a', '#2f7a22'], tuftCount: 2000, ferns: 340, flowers: 160, lily: true, reeds: true },
+    outside: ['jungleTree', 'jungleTree', 'bamboo', 'palm'], outsideCount: 320,
+    animals: [['monkey', 8], ['parrot', 7], ['butterfly', 10], ['frog', 5], ['turtle', 2], ['fish', 3]],
+  },
+  {
+    key: 'shore', name: 'Sandy Shores', emoji: '🏖️', card: ['#ffe1a0', '#2b9bd0'],
+    sky: 0x7fd6ff, fog: 0xb6ecff, fogNear: 32, fogFar: 80,
+    hemi: 1.1, hemiSky: 0xffffff, hemiGround: 0x9a8a60, sun: 2.9, sunColor: 0xfff2d8,
+    ground: { a: '#f4dc9c', b: '#ecd08a', high: '#f8e4ae', bank: '#d9bd7a', bed: '#b8a070', cliff: '#d0a868', rock: '#b0a090' },
+    hills: { amp: 0.7, freq: 0.06 }, rise: 4,
+    water: { color: 0x22b0d8, opacity: 0.8 },
+    rivers: [{ axis: 'z', pos: 0.55, amp: 3, freq: 0.1, width: 4, bridges: 3 }],
+    obstacles: [['palm', 26], ['rock', 14], ['cactus', 6], ['sandcastle', 6], ['umbrella', 8]],
+    decor: { tufts: ['#c8b46a', '#a8a050'], tuftCount: 400, shells: 300, pebbles: 160 },
+    outside: ['palm', 'palm', 'rock'], outsideCount: 200,
+    animals: [['turtle', 7], ['crab', 7], ['seagull', 8], ['fish', 4]],
+  },
+  {
+    key: 'rocky', name: 'Rocky Valley', emoji: '🪨', card: ['#a9a296', '#4f5a52'],
+    sky: 0xb4d4ee, fog: 0xccdbe6, fogNear: 28, fogFar: 72,
+    hemi: 1.0, hemiSky: 0xeef4ff, hemiGround: 0x5a5a4a, sun: 2.6, sunColor: 0xfff0dc,
+    ground: { a: '#9aa070', b: '#8a905e', high: '#a8a28c', bank: '#8a8070', bed: '#5a5850', cliff: '#7a756a', rock: '#8e8a82' },
+    hills: { amp: 1.3, freq: 0.08 }, rise: 8,
+    water: { color: 0x4aa0c8, opacity: 0.85 },
+    rivers: [{ axis: 'x', pos: 0.45, amp: 3, freq: 0.13, width: 3, bridges: 3 }],
+    obstacles: [['rock', 40], ['boulder', 12], ['pine', 10], ['stump', 8], ['bush', 10]],
+    decor: { tufts: ['#8a9a5a', '#7a8a4a'], tuftCount: 900, pebbles: 600, flowers: 80, reeds: true },
+    outside: ['boulder', 'rock', 'pine', 'rock'], outsideCount: 260,
+    animals: [['goat', 5], ['eagle', 3], ['rabbit', 4], ['butterfly', 4], ['fish', 2], ['lizard', 5]],
+  },
+  {
+    key: 'hills', name: 'Rolling Hills', emoji: '⛰️', card: ['#b4e27a', '#4d8a3a'],
+    sky: 0xa8dcff, fog: 0xd2ecff, fogNear: 30, fogFar: 78,
+    hemi: 1.05, hemiSky: 0xffffff, hemiGround: 0x5a7a3a, sun: 2.7, sunColor: 0xfff2d0,
+    ground: { a: '#9ad65e', b: '#86c650', high: '#b8e078', bank: '#b0a070', bed: '#5a6a4a', cliff: '#6a9a48', rock: '#8a8a80' },
+    hills: { amp: 2.6, freq: 0.06 }, rise: 7,
+    water: { color: 0x3fa8e0, opacity: 0.82 },
+    rivers: [{ axis: 'x', pos: 0.6, amp: 4, freq: 0.08, width: 3, bridges: 2 }, { axis: 'z', pos: 0.4, amp: 3, freq: 0.1, width: 2, bridges: 2 }],
+    obstacles: [['tree', 20], ['hay', 14], ['bush', 16], ['rock', 12], ['flowerBush', 14]],
+    decor: { tufts: ['#7cc24a', '#98d860', '#6ab03e'], tuftCount: 1800, flowers: 500, pebbles: 80, reeds: true },
+    outside: ['tree', 'pine', 'hay', 'bush'], outsideCount: 240,
+    animals: [['sheep', 9], ['rabbit', 4], ['bird', 7], ['butterfly', 8], ['duck', 3], ['fish', 2]],
+  },
+  {
+    key: 'snow', name: 'Snowy Peaks', emoji: '❄️', card: ['#f0f8ff', '#6a9cc8'],
+    sky: 0xc8e2f8, fog: 0xe8f2fc, fogNear: 22, fogFar: 64,
+    hemi: 1.0, hemiSky: 0xffffff, hemiGround: 0x9ab0c8, sun: 2.2, sunColor: 0xfff8f0,
+    ground: { a: '#f4f9ff', b: '#e6f0fa', high: '#ffffff', bank: '#c8d8e8', bed: '#7a90a8', cliff: '#d8e6f4', rock: '#8a98a8' },
+    hills: { amp: 1.6, freq: 0.07 }, rise: 9,
+    water: { color: 0x6ac0e8, opacity: 0.8 },
+    rivers: [{ axis: 'z', pos: 0.5, amp: 3, freq: 0.1, width: 3, bridges: 3 }],
+    obstacles: [['snowPine', 34], ['snowman', 8], ['iceRock', 14], ['rock', 8]],
+    decor: { tufts: ['#e8f0f8', '#d8e4f0'], tuftCount: 500, pebbles: 120, snowClumps: 500 },
+    outside: ['snowPine', 'snowPine', 'iceRock'], outsideCount: 280,
+    animals: [['penguin', 8], ['whiteRabbit', 5], ['bird', 5], ['fish', 2]],
+    snowfall: 900,
+  },
+  {
+    key: 'road', name: 'Country Road', emoji: '🛣️', card: ['#ffb070', '#4a4a5a'],
+    sky: 0xffb48a, fog: 0xffc8a0, fogNear: 28, fogFar: 75,
+    hemi: 0.75, hemiSky: 0xffd8c0, hemiGround: 0x4a4038, sun: 2.0, sunColor: 0xffb070, sunLow: true,
+    ground: { a: '#8ab85a', b: '#7aa84c', high: '#98c264', bank: '#a89068', bed: '#4a5040', cliff: '#6a8a46', rock: '#8a8478' },
+    hills: { amp: 0.5, freq: 0.06 }, rise: 5,
+    water: { color: 0x4a90c0, opacity: 0.85 },
+    rivers: [{ axis: 'x', pos: 0.55, amp: 2, freq: 0.1, width: 3, bridges: 'roads' }],
+    roads: [{ axis: 'z', pos: 0.3, width: 3 }, { axis: 'z', pos: 0.74, width: 3 }, { axis: 'x', pos: 0.2, width: 3 }],
+    obstacles: [['house', 8], ['car', 10], ['cone', 14], ['tree', 18], ['bush', 14], ['mailbox', 6]],
+    lamps: true,
+    decor: { tufts: ['#6a9a40', '#86b450'], tuftCount: 1100, flowers: 140, pebbles: 100, reeds: true },
+    outside: ['tree', 'house', 'tree', 'bush'], outsideCount: 200,
+    animals: [['dog', 4], ['cat', 3], ['pigeon', 7], ['bird', 5], ['duck', 3], ['fish', 2]],
+  },
+  {
+    key: 'playground', name: 'Fun Playground', emoji: '🛝', card: ['#ffd84a', '#ff6a8a'],
+    sky: 0x8cd6ff, fog: 0xc0eaff, fogNear: 30, fogFar: 78,
+    hemi: 1.1, hemiSky: 0xffffff, hemiGround: 0x5a8a3a, sun: 2.8, sunColor: 0xfff6e0,
+    ground: { a: '#7ed05a', b: '#6cc04a', high: '#8ad866', bank: '#d8c088', bed: '#5a6a4a', cliff: '#5a9a40', rock: '#9a9a90', sand: '#f2d898' },
+    hills: { amp: 0.45, freq: 0.06 }, rise: 4,
+    water: { color: 0x40b8e8, opacity: 0.82 },
+    rivers: [{ axis: 'z', pos: 0.62, amp: 2, freq: 0.12, width: 2, bridges: 3 }],
+    sandpits: 5,
+    obstacles: [['swing', 5], ['slide', 5], ['seesaw', 5], ['carousel', 3], ['bench', 10], ['tree', 14], ['ball', 8], ['bush', 10]],
+    decor: { tufts: ['#5fae45', '#7cc85a'], tuftCount: 1200, flowers: 260, pebbles: 60, lily: true },
+    outside: ['tree', 'tree', 'house', 'bush'], outsideCount: 200,
+    animals: [['dog', 5], ['squirrel', 5], ['pigeon', 7], ['butterfly', 8], ['duck', 3], ['fish', 2]],
+  },
+  {
+    key: 'cave', name: 'Torch Cave', emoji: '🔥', card: ['#5a4a3a', '#1a1210'],
+    sky: 0x050404, fog: 0x0a0807, fogNear: 10, fogFar: 36,
+    hemi: 0.22, hemiSky: 0x6a5a8a, hemiGround: 0x1a1210, sun: 0.35, sunColor: 0x7a8aff,
+    ground: { a: '#5a4c40', b: '#4e4238', high: '#665648', bank: '#4a4038', bed: '#1a2a2a', cliff: '#3a302a', rock: '#5a5048' },
+    hills: { amp: 0.9, freq: 0.09 }, rise: 12,
+    water: { color: 0x1a6a70, opacity: 0.88, glow: 0x0a4a50 },
+    rivers: [{ axis: 'x', pos: 0.5, amp: 3, freq: 0.12, width: 3, bridges: 3 }],
+    obstacles: [['stalagmite', 34], ['crystal', 14], ['rock', 18], ['torch', 22], ['barrel', 8]],
+    decor: { pebbles: 700, mushrooms: 220, tufts: ['#3a4a2a'], tuftCount: 120 },
+    outside: ['stalagmite', 'rock', 'boulder', 'crystal'], outsideCount: 300,
+    animals: [['bat', 10], ['fish', 2], ['frog', 3]],
+    dark: true, fenceTorches: 6, bridgeTorches: true, embers: true,
+  },
+  {
+    key: 'temple', name: 'Temple Night', emoji: '🏛️', card: ['#3a4a8a', '#0e1030'],
+    sky: 0x0a1030, fog: 0x101838, fogNear: 14, fogFar: 46,
+    hemi: 0.35, hemiSky: 0x6a7ad0, hemiGround: 0x101020, sun: 0.6, sunColor: 0x9aaaff, moon: true,
+    ground: { a: '#3a5a32', b: '#324e2c', high: '#46643a', bank: '#4a4a3a', bed: '#1a2a30', cliff: '#2a3a28', rock: '#6a6a72' },
+    hills: { amp: 1.0, freq: 0.08 }, rise: 7,
+    water: { color: 0x2a5a8a, opacity: 0.85, glow: 0x081830 },
+    rivers: [{ axis: 'x', pos: 0.38, amp: 3, freq: 0.1, width: 3, bridges: 2 }, { axis: 'z', pos: 0.66, amp: 3, freq: 0.1, width: 3, bridges: 2 }],
+    obstacles: [['pillar', 22], ['ruinWall', 10], ['jungleTree', 18], ['torch', 20], ['rock', 10], ['statue', 4]],
+    decor: { tufts: ['#2f5a2a', '#3a6a30'], tuftCount: 1300, ferns: 200, pebbles: 200, mushrooms: 80, lily: true },
+    outside: ['jungleTree', 'pillar', 'jungleTree', 'rock'], outsideCount: 260,
+    animals: [['bat', 6], ['monkey', 4], ['frog', 5], ['fish', 2]],
+    dark: true, fenceTorches: 7, bridgeTorches: true, fireflies: 160, embers: true, stars: true,
+  },
 ];
 
 // fruits are introduced gradually, level by level
@@ -49,105 +170,14 @@ const F7 = [...F6, 'invisible'];
 const F8 = [...F7, 'fire'];
 
 export const LEVELS = [
-  { map: 0, size: 16, target: 8,  special: 1, interval: 0.170, enemies: 0, fruits: F1 },
-  { map: 1, size: 18, target: 10, special: 1, interval: 0.165, enemies: 0, fruits: F2 },
-  { map: 2, size: 18, target: 12, special: 2, interval: 0.160, enemies: 1, fruits: F3 },
-  { map: 3, size: 20, target: 14, special: 2, interval: 0.155, enemies: 1, fruits: F4 },
-  { map: 4, size: 20, target: 16, special: 2, interval: 0.150, enemies: 2, fruits: F5 },
-  { map: 5, size: 22, target: 18, special: 3, interval: 0.145, enemies: 2, fruits: F6 },
-  { map: 6, size: 22, target: 20, special: 3, interval: 0.140, enemies: 3, fruits: F7 },
-  { map: 7, size: 24, target: 22, special: 3, interval: 0.132, enemies: 3, fruits: F8 },
-  { map: 8, size: 24, target: 25, special: 4, interval: 0.126, enemies: 4, fruits: F8 },
-  { map: 9, size: 26, target: 30, special: 4, interval: 0.120, enemies: 5, fruits: F8 },
+  { map: 0, size: 40, target: 8,  special: 1, interval: 0.165, enemies: 0, fruits: F1 },
+  { map: 1, size: 42, target: 10, special: 1, interval: 0.160, enemies: 0, fruits: F2 },
+  { map: 2, size: 44, target: 12, special: 2, interval: 0.156, enemies: 1, fruits: F3 },
+  { map: 3, size: 44, target: 14, special: 2, interval: 0.152, enemies: 1, fruits: F4 },
+  { map: 4, size: 46, target: 16, special: 2, interval: 0.148, enemies: 2, fruits: F5 },
+  { map: 5, size: 46, target: 18, special: 3, interval: 0.144, enemies: 2, fruits: F6 },
+  { map: 6, size: 48, target: 20, special: 3, interval: 0.140, enemies: 3, fruits: F7 },
+  { map: 7, size: 48, target: 22, special: 3, interval: 0.134, enemies: 3, fruits: F8 },
+  { map: 8, size: 50, target: 25, special: 4, interval: 0.128, enemies: 3, fruits: F8 },
+  { map: 9, size: 52, target: 30, special: 4, interval: 0.122, enemies: 4, fruits: F8 },
 ];
-
-function mulberry32(a) {
-  return function () {
-    a |= 0; a = (a + 0x6d2b79f5) | 0;
-    let t = Math.imul(a ^ (a >>> 15), 1 | a);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
-/** Builds the obstacle grid for a map. 0 = free, 1 = obstacle. */
-export function makeLayout(mapIndex, N) {
-  const grid = new Uint8Array(N * N);
-  const inside = (x, z) => x >= 0 && z >= 0 && x < N && z < N;
-  const set = (x, z) => { if (inside(x, z)) grid[z * N + x] = 1; };
-  const clr = (x, z) => { if (inside(x, z)) grid[z * N + x] = 0; };
-  const rect = (x0, z0, w, h, f = set) => { for (let z = z0; z < z0 + h; z++) for (let x = x0; x < x0 + w; x++) f(x, z); };
-  const rng = mulberry32(1234 + mapIndex * 977);
-  const ri = (a, b) => a + Math.floor(rng() * (b - a + 1));
-  const mid = Math.floor(N / 2);
-  const q = Math.floor(N / 4);
-  let start = { x: 4, z: mid };
-
-  switch (mapIndex) {
-    case 0: // Meadow – open field with a few bushes
-      [[q, q], [N - q - 1, q], [q, N - q - 1], [N - q - 1, N - q - 1]].forEach(([x, z]) => set(x, z));
-      break;
-    case 1: // Desert – scattered cacti
-      for (let i = 0; i < Math.round(N * 0.9); i++) set(ri(1, N - 2), ri(1, N - 2));
-      break;
-    case 2: // Frozen – ice blocks
-      [[q - 1, q - 1], [N - q - 1, q - 1], [q - 1, N - q - 1], [N - q - 1, N - q - 1], [mid - 1, mid - 1]].forEach(([x, z]) => rect(x, z, 2, 2));
-      rect(mid - 1, 1, 2, 2); rect(mid - 1, N - 3, 2, 2);
-      break;
-    case 3: // Forest – tree clusters
-      for (let i = 0; i < 13; i++) {
-        const cx = ri(2, N - 3), cz = ri(2, N - 3);
-        set(cx, cz);
-        if (rng() < .7) set(cx + 1, cz);
-        if (rng() < .5) set(cx, cz + 1);
-        if (rng() < .3) set(cx + 1, cz + 1);
-      }
-      break;
-    case 4: // Beach – plus-shaped palm rows with gaps
-      for (let i = 3; i < N - 3; i++) {
-        if (Math.abs(i - mid) > 1) { set(mid, i); set(i, mid); }
-      }
-      start = { x: 4, z: q };
-      break;
-    case 5: // Lava – grid of obsidian pillars
-      for (let z = 2; z < N - 3; z += 4) for (let x = 2; x < N - 3; x += 4) rect(x, z, 2, 2);
-      break;
-    case 6: // Candy – four rooms with doors
-      for (let i = 0; i < N; i++) { set(mid, i); set(i, mid); }
-      [q - 1, q, N - q - 1, N - q].forEach(i => { clr(mid, i); clr(i, mid); });
-      start = { x: 4, z: q };
-      break;
-    case 7: // Neon City – city blocks and streets
-      for (let bz = 2; bz + 3 <= N - 2; bz += 5) for (let bx = 2; bx + 3 <= N - 2; bx += 5) rect(bx, bz, 3, 3);
-      start = { x: 4, z: 11 };
-      break;
-    case 8: { // Crystal Cave – concentric rings with gaps
-      const ring = (a, gaps) => {
-        for (let i = a; i <= N - 1 - a; i++) { set(i, a); set(i, N - 1 - a); set(a, i); set(N - 1 - a, i); }
-        gaps.forEach(g => { clr(g, a); clr(g, N - 1 - a); clr(a, g); clr(N - 1 - a, g); });
-      };
-      ring(3, [mid - 1, mid]);
-      ring(7, [8, 9, N - 10, N - 9]);
-      rect(mid - 1, mid - 1, 2, 2);
-      break;
-    }
-    case 9: { // Cosmic – zig-zag walls + asteroids
-      const rows = [4, 9, N - 10, N - 5];
-      rows.forEach((z, k) => {
-        for (let x = 0; x < N; x++) {
-          const gapLeft = k % 2 === 0;
-          if (gapLeft ? x > 3 : x < N - 4) set(x, z);
-        }
-      });
-      for (let i = 0; i < 10; i++) {
-        const x = ri(2, N - 3), z = ri(1, N - 2);
-        if (!rows.includes(z) && !rows.includes(z - 1) && !rows.includes(z + 1)) set(x, z);
-      }
-      break;
-    }
-  }
-
-  // Keep a safe runway around the start position
-  rect(start.x - 3, start.z - 1, 10, 3, clr);
-  return { grid, start, dir: 'right' };
-}

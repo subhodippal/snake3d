@@ -1,16 +1,17 @@
 // ───────────────────────────────────────────────────────────
-//  Core game: world building, grid logic, effects, rendering
+//  Core game: grid logic on an open 3D world, effects, camera
 // ───────────────────────────────────────────────────────────
 import * as THREE from 'three';
-import { LEVELS, THEMES, FRUITS, ALL_FRUITS, makeLayout } from './levels.js';
+import { LEVELS, THEMES, FRUITS, ALL_FRUITS } from './levels.js';
+import { generateMap, FREE, OBST, WATER, BRIDGE, ROAD, walkable } from './mapgen.js';
 import * as M from './models.js';
 import { Particles } from './fx.js';
+import { World } from './world.js';
 import { DIRS, OPP } from './input.js';
 
 const DIR_NAMES = ['up', 'down', 'left', 'right'];
 const MAX_SEG = 700;
 const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _s = new THREE.Vector3(), _p = new THREE.Vector3(), _c = new THREE.Color(), _v = new THREE.Vector3();
-const ZERO = new THREE.Matrix4().makeScale(0, 0, 0);
 const rand = (a = 1, b) => (b === undefined ? Math.random() * a : a + Math.random() * (b - a));
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const angleOf = n => Math.atan2(DIRS[n].x, DIRS[n].z);
@@ -33,21 +34,22 @@ export class Game {
     r.shadowMap.type = THREE.PCFSoftShadowMap;
 
     this.scene = new THREE.Scene();
-    this.camera = new THREE.PerspectiveCamera(50, 1, 0.1, 300);
+    this.camera = new THREE.PerspectiveCamera(50, 1, 0.1, 260);
     this.baseFov = 50;
 
     this.hemi = new THREE.HemisphereLight(0xffffff, 0x445544, 1);
     this.sun = new THREE.DirectionalLight(0xffffff, 2.4);
     this.sun.castShadow = true;
     const sc = this.sun.shadow.camera;
-    sc.left = -18; sc.right = 18; sc.top = 18; sc.bottom = -18; sc.near = 1; sc.far = 80;
-    this.sun.shadow.bias = -0.0004;
-    this.sun.shadow.normalBias = 0.03;
+    sc.left = -22; sc.right = 22; sc.top = 22; sc.bottom = -22; sc.near = 1; sc.far = 90;
+    this.sun.shadow.bias = -0.0005;
+    this.sun.shadow.normalBias = 0.04;
     this.scene.add(this.hemi, this.sun, this.sun.target);
 
-    this.world = new THREE.Group();
-    this.scene.add(this.world);
-    this.particles = new Particles(this.scene, 700);
+    this.particles = new Particles(this.scene, 900);
+    this.world = new World(this.scene, this.particles);
+    this.actors = new THREE.Group();
+    this.scene.add(this.actors);
 
     // Snake visuals
     this.head = M.makeHead();
@@ -62,8 +64,17 @@ export class Game {
 
     this.apple = M.makeApple();
     this.scene.add(this.apple);
+    this.appleMat = this.apple.userData.inner.children[0].material;
     this.magnetRing = M.makeMagnetRing();
     this.scene.add(this.magnetRing);
+
+    // arrow that points at the next apple when it is far away
+    const sh = new THREE.Shape();
+    sh.moveTo(0, .42); sh.lineTo(.3, -.05); sh.lineTo(.11, -.02); sh.lineTo(.11, -.32); sh.lineTo(-.11, -.32); sh.lineTo(-.11, -.02); sh.lineTo(-.3, -.05); sh.closePath();
+    const ag = new THREE.ShapeGeometry(sh); ag.rotateX(-Math.PI / 2); ag.rotateY(Math.PI);
+    this.arrow = new THREE.Mesh(ag, new THREE.MeshBasicMaterial({ color: 0xff3a4a, transparent: true, opacity: .85, depthWrite: false, toneMapped: false, side: THREE.DoubleSide }));
+    this.arrow.renderOrder = 3;
+    this.scene.add(this.arrow);
 
     this.shocks = [];
     this.pts = [];
@@ -71,6 +82,7 @@ export class Game {
     this.camLook = new THREE.Vector3();
     this.camTarget = new THREE.Vector3();
     this.camDesired = new THREE.Vector3();
+    this.lookAhead = new THREE.Vector3();
     this.time = 0;
     this.state = 'idle';
     this.shake = 0;
@@ -82,6 +94,7 @@ export class Game {
   }
 
   setQuality(q) {
+    const changed = this.quality && this.quality !== q;
     this.quality = q;
     const coarse = matchMedia('(pointer: coarse)').matches;
     this.renderer.setPixelRatio(q === 'low' ? 1 : Math.min(devicePixelRatio, coarse ? 1.75 : 2));
@@ -90,6 +103,7 @@ export class Game {
     this.sun.shadow.mapSize.set(s, s);
     if (this.sun.shadow.map) { this.sun.shadow.map.dispose(); this.sun.shadow.map = null; }
     this.scene.traverse(o => { if (o.material) { (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => m.needsUpdate = true); } });
+    if (changed && this.map) this.world.build(this.theme, this.map, q);
     this.resize();
   }
 
@@ -98,7 +112,7 @@ export class Game {
     this.renderer.setSize(w, h, false);
     const aspect = w / h;
     this.camera.aspect = aspect;
-    this.baseFov = aspect < 1 ? clamp(2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(19)) / aspect) * 180 / Math.PI, 50, 70) : 50;
+    this.baseFov = aspect < 1 ? clamp(2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(21)) / aspect) * 180 / Math.PI, 50, 72) : 50;
     this.camera.fov = this.baseFov;
     this.camera.updateProjectionMatrix();
   }
@@ -120,10 +134,10 @@ export class Game {
     this.L = L;
     this.theme = THEMES[L.map];
     this.N = L.size;
-    const lay = makeLayout(L.map, L.size);
-    this.grid = lay.grid;
-    this.start = lay.start;
-    this.startDir = lay.dir;
+    this.map = generateMap(this.theme, L.size, L.map + 1);
+    this.grid = this.map.cell;
+    this.start = this.map.start;
+    this.startDir = this.map.dir;
     this.reachable = this.bfsReachable();
     this.buildWorld();
     this.reset();
@@ -138,7 +152,7 @@ export class Game {
         const nx = x + DIRS[n].x, nz = z + DIRS[n].z;
         if (nx < 0 || nz < 0 || nx >= N || nz >= N) continue;
         const j = nz * N + nx;
-        if (!seen[j] && !this.grid[j]) { seen[j] = 1; q.push(j); }
+        if (!seen[j] && walkable(this.grid[j])) { seen[j] = 1; q.push(j); }
       }
     }
     return seen;
@@ -158,123 +172,64 @@ export class Game {
   }
 
   buildWorld() {
-    this.disposeTree(this.world);
-    this.world.clear();
-    const T = this.theme, N = this.N, off = N / 2 - .5;
-
+    const T = this.theme;
     this.scene.background = new THREE.Color(T.sky);
-    this.scene.fog = new THREE.Fog(T.fog, 32, T.space ? 140 : 80);
+    this.scene.fog = new THREE.Fog(T.fog, T.fogNear ?? 30, T.fogFar ?? 75);
     this.hemi.color.set(T.hemiSky ?? 0xffffff);
     this.hemi.groundColor.set(T.hemiGround ?? 0x555555);
     this.hemi.intensity = T.hemi ?? 1;
     this.sun.color.set(T.sunColor ?? 0xffffff);
     this.sun.intensity = T.sun ?? 2.4;
-
-    // arena floor
-    const ground = new THREE.Mesh(new THREE.PlaneGeometry(N, N),
-      new THREE.MeshStandardMaterial({ map: M.groundTexture(N, T.groundA, T.groundB, T.line), roughness: .95 }));
-    ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true;
-    this.world.add(ground);
-
-    // base slab under arena
-    const slab = new THREE.Mesh(new THREE.BoxGeometry(N + 2.4, 1.2, N + 2.4), new THREE.MeshStandardMaterial({ color: T.wall, roughness: .8 }));
-    slab.position.y = -.601; slab.receiveShadow = true;
-    this.world.add(slab);
-
-    // outside ground / water / lava
-    this.outside = null;
-    if (!T.space) {
-      const mat = new THREE.MeshStandardMaterial({
-        color: T.outside, roughness: T.water ? .2 : 1, metalness: T.water ? .1 : 0,
-        emissive: T.lava ? T.outside : 0x000000, emissiveIntensity: T.lava ? .9 : 0,
-      });
-      const o = new THREE.Mesh(new THREE.PlaneGeometry(400, 400), mat);
-      o.rotation.x = -Math.PI / 2;
-      o.position.y = (T.water || T.lava) ? -.4 : -.03;
-      o.receiveShadow = true;
-      this.world.add(o);
-      this.outside = o;
-    }
-
-    // border walls
-    const wallGeo = M.wallGeometry(T.wall, T.wallTop);
-    const wallMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .7, emissive: T.neon ? T.wall : 0x000000, emissiveIntensity: T.neon ? .35 : 0 });
-    const cells = [];
-    for (let x = -1; x <= N; x++) { cells.push([x, -1], [x, N]); }
-    for (let z = 0; z < N; z++) { cells.push([-1, z], [N, z]); }
-    const walls = new THREE.InstancedMesh(wallGeo, wallMat, cells.length);
-    cells.forEach(([x, z], i) => { _m.makeTranslation(x - off, 0, z - off); walls.setMatrixAt(i, _m); });
-    walls.castShadow = true; walls.receiveShadow = true;
-    this.world.add(walls);
-
-    // obstacles
-    const obs = [];
-    for (let i = 0; i < N * N; i++) if (this.grid[i]) obs.push(i);
-    const oGeo = M.obstacleGeometry(T.obstacle);
-    const oMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .55, transparent: T.obstacle === 'ice', opacity: T.obstacle === 'ice' ? .88 : 1 });
-    const om = new THREE.InstancedMesh(oGeo, oMat, Math.max(1, obs.length));
-    om.count = obs.length;
-    this.obstacleIndex = new Map();
-    this.obstacleData = [];
-    obs.forEach((idx, k) => {
-      const x = idx % N, z = (idx / N) | 0;
-      const rotY = T.obstacle === 'building' ? 0 : rand(Math.PI * 2);
-      const sy = T.obstacle === 'building' ? rand(1, 2.8) : rand(.85, 1.15);
-      const sxz = T.obstacle === 'building' ? 1 : rand(.85, 1.1);
-      const pos = new THREE.Vector3(x - off, 0, z - off), quat = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), rotY), scl = new THREE.Vector3(sxz, sy, sxz);
-      _m.compose(pos, quat, scl);
-      om.setMatrixAt(k, _m);
-      om.setColorAt(k, this.tintFor(T.obstacle));
-      this.obstacleIndex.set(idx, k);
-      this.obstacleData[k] = { pos, quat, scl, t: -1 };
-    });
-    om.castShadow = true; om.receiveShadow = true;
-    this.world.add(om);
-    this.obstacles = om;
-    this.destroying = [];
-
-    // decor outside the arena
-    const dGeo = T.decor === T.obstacle ? oGeo : M.obstacleGeometry(T.decor);
-    const dMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .6 });
-    const DN = 80;
-    const dm = new THREE.InstancedMesh(dGeo, dMat, DN);
-    for (let i = 0; i < DN; i++) {
-      const a = rand(Math.PI * 2), rr = N / 2 + rand(2.5, 16);
-      const s = rand(1.2, 2.4);
-      const y = T.space ? rand(-3, 2) : 0;
-      _m.compose(_p.set(Math.cos(a) * rr, y, Math.sin(a) * rr),
-        _q.setFromEuler(new THREE.Euler(T.space ? rand(3) : 0, rand(6.3), T.space ? rand(3) : 0)),
-        _s.set(s, T.decor === 'building' ? s * rand(1, 3) : s, s));
-      dm.setMatrixAt(i, _m);
-      dm.setColorAt(i, this.tintFor(T.decor));
-    }
-    this.world.add(dm);
-    this.decor = dm;
-
-    // stars for space-like themes
-    if (T.space || T.neon || T.lava || T.obstacle === 'crystal') {
-      const n = T.space ? 1800 : 500;
-      const pos = new Float32Array(n * 3);
-      for (let i = 0; i < n; i++) {
-        const th = rand(Math.PI * 2), ph = rand(.05, T.space ? Math.PI : 1.2), R = rand(60, 110);
-        pos[i * 3] = Math.sin(ph) * Math.cos(th) * R;
-        pos[i * 3 + 1] = Math.cos(ph) * R * (T.space ? 1 : .6) + (T.space ? 0 : 6);
-        pos[i * 3 + 2] = Math.sin(ph) * Math.sin(th) * R;
-      }
-      const g = new THREE.BufferGeometry();
-      g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-      const col = T.lava ? 0xff8a40 : T.neon ? 0xff6bf0 : T.space ? 0xffffff : 0xb59cff;
-      const pts = new THREE.Points(g, new THREE.PointsMaterial({ color: col, size: T.space ? .45 : .6, fog: false, transparent: true, opacity: .9 }));
-      this.world.add(pts);
-      this.stars = pts;
-    } else this.stars = null;
+    this.sunOffset = T.sunLow ? new THREE.Vector3(-18, 11, 6) : T.dark ? new THREE.Vector3(-8, 26, -6) : new THREE.Vector3(10, 26, 8);
+    this.renderer.toneMappingExposure = T.dark ? 1.15 : 1.05;
+    this.world.build(T, this.map, this.quality);
+    this.appleMat.emissive.set(T.dark ? 0x801010 : 0x400000);
+    this.appleMat.emissiveIntensity = T.dark ? 1.4 : 1;
+    this.buildMinimap();
   }
 
-  tintFor(kind) {
-    if (kind === 'lollipop') return _c.setHSL(rand(), .8, .72);
-    if (kind === 'building') return _c.setHSL(rand(.6, .8), .3, rand(.75, 1));
-    const v = rand(.85, 1.1);
-    return _c.setRGB(v, v, v);
+  buildMinimap() {
+    const N = this.N, T = this.theme, c = document.createElement('canvas');
+    c.width = c.height = N;
+    const g = c.getContext('2d'), img = g.createImageData(N, N);
+    const ga = new THREE.Color(T.ground.a), wc = new THREE.Color(T.water?.color ?? 0x3aa6e0);
+    const col = {
+      [FREE]: ga, [ROAD]: new THREE.Color(0x55555e), [WATER]: wc.clone().lerp(new THREE.Color(0x2a6aff), .3),
+      [BRIDGE]: new THREE.Color(0xc08a4a), [OBST]: ga.clone().multiplyScalar(.45),
+    };
+    for (let i = 0; i < N * N; i++) {
+      const cc = col[this.grid[i]] || ga;
+      const x = i % N, z = (i / N) | 0, hgt = this.map.heightAt(x - this.map.off, z - this.map.off);
+      const shade = this.grid[i] === FREE ? clamp(.85 + hgt * .12, .7, 1.25) : 1;
+      img.data[i * 4] = Math.min(255, cc.r * 255 * shade); img.data[i * 4 + 1] = Math.min(255, cc.g * 255 * shade); img.data[i * 4 + 2] = Math.min(255, cc.b * 255 * shade); img.data[i * 4 + 3] = 255;
+    }
+    if (T.dark) for (let i = 0; i < N * N; i++) for (let k = 0; k < 3; k++) img.data[i * 4 + k] = Math.min(255, img.data[i * 4 + k] * 1.6 + 20);
+    g.putImageData(img, 0, 0);
+    this.minimapBase = c;
+  }
+
+  /** Draws the minimap into a 2D context. */
+  drawMinimap(ctx, size) {
+    if (!this.minimapBase || !this.body) return;
+    const N = this.N, k = size / N;
+    ctx.imageSmoothingEnabled = false;
+    ctx.clearRect(0, 0, size, size);
+    ctx.drawImage(this.minimapBase, 0, 0, size, size);
+    ctx.fillStyle = 'rgba(0,0,0,.25)'; ctx.fillRect(0, 0, size, size);
+    ctx.drawImage(this.minimapBase, 0, 0, size, size);
+    // view area
+    const h = this.body[0];
+    ctx.strokeStyle = 'rgba(255,255,255,.35)'; ctx.lineWidth = 1;
+    ctx.strokeRect((h.x - 11) * k, (h.z - 8) * k, 22 * k, 16 * k);
+    // snake
+    ctx.fillStyle = '#' + _c.set(M.SKINS[this.skinIndex].a ?? 0x43c463).getHexString();
+    for (let i = 1; i < this.body.length; i++) ctx.fillRect(this.body[i].x * k, this.body[i].z * k, Math.max(2, k), Math.max(2, k));
+    const blink = Math.sin(this.time * 8) > 0;
+    const dot = (x, z, r, color) => { ctx.fillStyle = color; ctx.beginPath(); ctx.arc((x + .5) * k, (z + .5) * k, r, 0, 7); ctx.fill(); };
+    for (const e of this.enemies) if (e.alive) dot(e.x, e.z, 2.5, '#c050ff');
+    for (const s of this.specials) dot(s.x, s.z, 3, s.key === 'poison' ? '#6aff3a' : '#ffe14a');
+    if (this.food) { dot(this.food.x, this.food.z, blink ? 4.5 : 3.5, '#ff2a3a'); ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.2; ctx.stroke(); }
+    dot(h.x, h.z, 3.5, '#ffffff');
   }
 
   // ── State reset ───────────────────────────────────────────
@@ -298,13 +253,15 @@ export class Game {
     this.eatPulse = 0;
     this.headAngle = angleOf(this.dirName);
     this.tongueT = 1; this.flick = -1; this.blinkT = 2; this.blink = -1;
+    (this.specials || []).forEach(sp => { this.actors.remove(sp.mesh); this.disposeTree(sp.mesh); });
+    (this.enemies || []).forEach(e => { this.actors.remove(e.mesh); this.disposeTree(e.mesh); });
     this.specials = [];
     this.enemies = [];
     this.specialTimer = this.demo ? 1 : 4;
     this.timeLeft = this.cfg.mode === 'time' ? 90 : null;
     this.elapsed = 0;
     this.endT = 0; this.endKind = null; this.reported = false;
-    this.goalHint = false;
+    this.goalHint = false; this.waterHint = false;
     this.sprinting = false;
     this.food = null;
     this.spawnFood();
@@ -318,12 +275,15 @@ export class Game {
     this.shocks.forEach(s => { this.scene.remove(s.mesh); s.mesh.geometry.dispose(); s.mesh.material.dispose(); });
     this.shocks = [];
     this.applyVisualEffects();
+    this.lookAhead.set(0, 0, 0);
     this.snapCamera = true;
   }
 
   // ── Helpers ───────────────────────────────────────────────
-  cellPos(x, z, y = 0) { const off = this.N / 2 - .5; return _v.set(x - off, y, z - off); }
+  ground(wx, wz) { return this.map.groundAt(wx, wz); }
+  cellPos(x, z, y = 0) { const off = this.N / 2 - .5; return _v.set(x - off, this.map.groundAt(x - off, z - off) + y, z - off); }
   inBounds(x, z) { return x >= 0 && z >= 0 && x < this.N && z < this.N; }
+  isBlocked(i) { const t = this.grid[i]; return t === OBST || t === WATER; }
 
   occupied() {
     const N = this.N, s = new Set();
@@ -334,12 +294,14 @@ export class Game {
     return s;
   }
 
-  randomFreeCell(minDist = 0) {
+  /** Random free, reachable cell between minDist and maxDist (Manhattan) from the head. */
+  randomFreeCell(minDist = 0, maxDist = Infinity) {
     const N = this.N, occ = this.occupied(), h = this.body[0], list = [];
     for (let i = 0; i < N * N; i++) {
-      if (!this.reachable[i] || this.grid[i] || occ.has(i)) continue;
-      const x = i % N, z = (i / N) | 0;
-      if (Math.abs(x - h.x) + Math.abs(z - h.z) >= minDist) list.push(i);
+      const t = this.grid[i];
+      if (!this.reachable[i] || (t !== FREE && t !== ROAD) || occ.has(i)) continue;
+      const x = i % N, z = (i / N) | 0, d = Math.abs(x - h.x) + Math.abs(z - h.z);
+      if (d >= minDist && d <= maxDist) list.push(i);
     }
     return list.length ? list[(Math.random() * list.length) | 0] : null;
   }
@@ -363,7 +325,8 @@ export class Game {
 
   // ── Spawning ──────────────────────────────────────────────
   spawnFood() {
-    const idx = this.randomFreeCell(2) ?? this.randomFreeCell(0);
+    const far = Math.max(12, Math.round(this.N * .4));
+    const idx = this.randomFreeCell(4, far) ?? this.randomFreeCell(2) ?? this.randomFreeCell(0);
     if (idx == null) { this.food = null; this.apple.visible = false; return; }
     this.food = { x: idx % this.N, z: (idx / this.N) | 0, t: 0 };
     this.apple.visible = true;
@@ -374,28 +337,28 @@ export class Game {
     const weights = pool.map(k => (k === 'poison' ? .55 : k === 'fire' ? .7 : 1));
     let r = rand(weights.reduce((a, b) => a + b, 0)), key = pool[0];
     for (let i = 0; i < pool.length; i++) { r -= weights[i]; if (r <= 0) { key = pool[i]; break; } }
-    const idx = this.randomFreeCell(3);
+    const idx = this.randomFreeCell(3, 14) ?? this.randomFreeCell(3);
     if (idx == null) return;
     const mesh = M.makeSpecial(key);
-    const sp = { key, x: idx % this.N, z: (idx / this.N) | 0, life: 11, t: 0, mesh };
+    const sp = { key, x: idx % this.N, z: (idx / this.N) | 0, life: 14, t: 0, mesh };
     mesh.position.copy(this.cellPos(sp.x, sp.z));
-    this.world.add(mesh);
+    this.actors.add(mesh);
     this.specials.push(sp);
     if (!this.demo) this.sfx.tone(990, .1, 'sine', .08);
   }
 
   removeSpecial(sp, poof = true) {
-    if (poof) { const p = sp.mesh.position; this.particles.emit(p.x, .5, p.z, 14, { color: FRUITS[sp.key].color, speed: 2.5, life: .6 }); }
-    this.world.remove(sp.mesh);
+    if (poof) { const p = sp.mesh.position; this.particles.emit(p.x, p.y + .5, p.z, 14, { color: FRUITS[sp.key].color, speed: 2.5, life: .6 }); }
+    this.actors.remove(sp.mesh);
     this.disposeTree(sp.mesh);
     this.specials.splice(this.specials.indexOf(sp), 1);
   }
 
   spawnEnemy() {
-    const idx = this.randomFreeCell(8) ?? this.randomFreeCell(4);
+    const idx = this.randomFreeCell(8, 22) ?? this.randomFreeCell(4);
     if (idx == null) return;
-    const mesh = M.makeSlime(this.theme.enemy);
-    this.world.add(mesh);
+    const mesh = M.makeSlime(this.theme.enemy ?? 0x9b4dff);
+    this.actors.add(mesh);
     const x = idx % this.N, z = (idx / this.N) | 0;
     const e = { x, z, px: x, pz: z, mt: 1, timer: rand(.5, 1.2), interval: Math.max(.32, .6 - this.levelIndex * .025), mesh, alive: true, face: rand(6.3), spawnT: 0, respawnT: 0, phase: rand(6.3) };
     mesh.position.copy(this.cellPos(x, z));
@@ -403,19 +366,19 @@ export class Game {
   }
 
   reviveEnemy(e) {
-    const idx = this.randomFreeCell(8) ?? this.randomFreeCell(4);
+    const idx = this.randomFreeCell(8, 22) ?? this.randomFreeCell(4);
     if (idx == null) { e.respawnT = 2; return; }
     e.x = e.px = idx % this.N; e.z = e.pz = (idx / this.N) | 0;
     e.alive = true; e.spawnT = 0; e.mt = 1; e.mesh.visible = true;
     const p = this.cellPos(e.x, e.z);
-    this.particles.emit(p.x, .4, p.z, 16, { color: this.theme.enemy, speed: 2, life: .6 });
+    this.particles.emit(p.x, p.y + .4, p.z, 16, { color: 0x9b4dff, speed: 2, life: .6 });
   }
 
   killEnemy(e, scoreIt = true) {
     if (!e.alive) return;
     e.alive = false; e.mesh.visible = false; e.respawnT = 8;
     const p = e.mesh.position;
-    this.particles.emit(p.x, .5, p.z, 30, { colors: [this.theme.enemy, 0xff7a1a, 0xffd400], speed: 5, up: 3, life: .9 });
+    this.particles.emit(p.x, p.y + .5, p.z, 30, { colors: [0x9b4dff, 0xff7a1a, 0xffd400], speed: 5, up: 3, life: .9 });
     if (scoreIt) { this.score += 50; this.popup('+50', e.x, e.z, '#ffb347'); }
     this.sfx.kill();
   }
@@ -449,7 +412,7 @@ export class Game {
       this.tickEnd(dt);
     }
 
-    if (st !== 'paused') this.animate(st === 'paused' ? 0 : dt);
+    if (st !== 'paused') this.animate(dt);
     this.renderer.render(this.scene, this.camera);
   }
 
@@ -499,13 +462,13 @@ export class Game {
     if (this.effects.fire && Math.random() < .9) {
       const n = this.body.length, i = (Math.random() * n) | 0;
       const p = this.pts[i] || hp;
-      this.particles.emit(p.x, .6, p.z, 1, { colors: [0xff3d00, 0xff9100, 0xffd400], speed: .6, up: 3, gravity: 2, life: .5, size: 1.3 });
+      this.particles.emit(p.x, p.y + .6, p.z, 1, { colors: [0xff3d00, 0xff9100, 0xffd400], speed: .6, up: 3, gravity: 2, life: .5, size: 1.3 });
     }
-    if (this.effects.reverse && Math.random() < .4) this.particles.emit(hp.x, 1, hp.z, 1, { color: 0xa14bff, speed: 1.5, up: 1, gravity: 0, life: .5 });
-    if (this.effects.slow && Math.random() < .25) this.particles.emit(hp.x, .9, hp.z, 1, { color: 0x7fd0ff, speed: .5, up: .8, gravity: 0, life: .9 });
+    if (this.effects.reverse && Math.random() < .4) this.particles.emit(hp.x, hp.y + .6, hp.z, 1, { color: 0xa14bff, speed: 1.5, up: 1, gravity: 0, life: .5 });
+    if (this.effects.slow && Math.random() < .25) this.particles.emit(hp.x, hp.y + .5, hp.z, 1, { color: 0x7fd0ff, speed: .5, up: .8, gravity: 0, life: .9 });
     if (this.effects.fast && Math.random() < .5) {
       const tail = this.pts[this.body.length - 1] || hp;
-      this.particles.emit(tail.x, .3, tail.z, 1, { color: 0xffd400, speed: 1, up: .5, life: .4 });
+      this.particles.emit(tail.x, tail.y + .3, tail.z, 1, { color: 0xffd400, speed: 1, up: .5, life: .4 });
     }
   }
 
@@ -519,9 +482,10 @@ export class Game {
     const fire = !!this.effects.fire;
     const ghost = fire || !!this.effects.invisible || this.invuln > 0;
 
-    if (!this.inBounds(nx, nz)) return this.crash();
+    if (!this.inBounds(nx, nz)) return this.crash('fence');
     const idx = nz * N + nx;
-    if (this.grid[idx]) {
+    if (this.grid[idx] === WATER) return this.crash('water', nx, nz);
+    if (this.grid[idx] === OBST) {
       if (fire) this.destroyObstacle(idx);
       else return this.crash();
     }
@@ -539,8 +503,9 @@ export class Game {
 
     if (this.sprinting && Math.random() < .7) {
       const p = this.cellPos(head.x, head.z);
-      this.particles.emit(p.x, .1, p.z, 2, { color: 0xffffff, speed: 1.2, up: .8, life: .35, size: .8 });
+      this.particles.emit(p.x, p.y + .1, p.z, 2, { color: 0xffffff, speed: 1.2, up: .8, life: .35, size: .8 });
     }
+    if (this.grid[idx] === BRIDGE && !this.demo && Math.random() < .5) this.sfx.tone(180 + Math.random() * 40, .05, 'triangle', .05);
 
     if (this.effects.magnet) this.magnetPull();
     this.checkPickups();
@@ -565,7 +530,7 @@ export class Game {
       for (const [sx, sz] of tries) {
         if (!sx && !sz) continue;
         const x = o.x + sx, z = o.z + sz, i = z * N + x;
-        if (!this.inBounds(x, z) || this.grid[i] || occ.has(i)) continue;
+        if (!this.inBounds(x, z) || this.isBlocked(i) || occ.has(i)) continue;
         o.x = x; o.z = z; return;
       }
     };
@@ -583,7 +548,7 @@ export class Game {
     this.bulges.push({ pos: 0 });
     this.eatPulse = 1;
     const p = this.cellPos(f.x, f.z);
-    this.particles.emit(p.x, .5, p.z, 18, { colors: [0xff2d3a, 0xffffff, 0x3ec64a], speed: 3.5, up: 2.5, life: .7 });
+    this.particles.emit(p.x, p.y + .5, p.z, 18, { colors: [0xff2d3a, 0xffffff, 0x3ec64a], speed: 3.5, up: 2.5, life: .7 });
     this.popup(this.sprinting ? `+${pts} SPRINT!` : `+${pts}`, f.x, f.z, '#fff');
     if (!this.demo) this.sfx.eat();
     this.spawnFood();
@@ -592,9 +557,9 @@ export class Game {
 
   eatSpecial(sp) {
     const F = FRUITS[sp.key], k = sp.key;
-    const p = this.cellPos(sp.x, sp.z), px = p.x, pz = p.z;
+    const p = this.cellPos(sp.x, sp.z), px = p.x, py = p.y, pz = p.z;
     this.removeSpecial(sp, false);
-    this.particles.emit(px, .6, pz, 26, { colors: [F.color, 0xffffff], speed: 4, up: 3, life: .8 });
+    this.particles.emit(px, py + .6, pz, 26, { colors: [F.color, 0xffffff], speed: 4, up: 3, life: .8 });
     this.shockwave(px, pz, F.color === 0xffffff ? 0xff6bf0 : F.color, 6);
     if (k !== 'poison') { this.specialEaten++; this.score += 25; this.popup(`${F.emoji} +25`, sp.x, sp.z, '#ffe27a'); }
     if (!this.demo) (k === 'poison' ? this.sfx.poison() : this.sfx.special());
@@ -617,7 +582,7 @@ export class Game {
         const len = this.body.length, nl = Math.max(3, Math.ceil(len / 2));
         for (let i = nl; i < len; i++) {
           const q = this.cellPos(this.body[i].x, this.body[i].z);
-          this.particles.emit(q.x, .4, q.z, 3, { color: this.skinColor(i * 2), speed: 2, life: .6 });
+          this.particles.emit(q.x, q.y + .4, q.z, 3, { color: this.skinColor(i * 2), speed: 2, life: .6 });
         }
         this.body.length = nl; this.prev.length = nl; this.grow = 0;
         if (!this.demo) this.sfx.shrink();
@@ -632,7 +597,7 @@ export class Game {
       case 'color': {
         this.skinIndex = (this.skinIndex + 1) % M.SKINS.length;
         this.score += 50;
-        this.particles.emit(px, .6, pz, 30, { colors: [0xff3b5c, 0xffd400, 0x43c463, 0x2f7bff, 0xd040fb], speed: 5, up: 4, life: 1 });
+        this.particles.emit(px, py + .6, pz, 30, { colors: [0xff3b5c, 0xffd400, 0x43c463, 0x2f7bff, 0xd040fb], speed: 5, up: 4, life: 1 });
         break;
       }
     }
@@ -649,12 +614,12 @@ export class Game {
   }
 
   destroyObstacle(idx) {
-    this.grid[idx] = 0;
-    this.reachable[idx] = 1;
-    const k = this.obstacleIndex.get(idx);
-    if (k !== undefined) { this.obstacleData[k].t = 0; this.destroying.push(k); }
+    const oid = this.map.owner[idx];
+    const cells = oid >= 0 ? this.map.obstacles[oid].cells : [idx];
+    for (const i of cells) { this.grid[i] = FREE; this.reachable[i] = 1; this.map.owner[i] = -1; }
+    if (oid >= 0) this.world.destroyObstacle(oid);
     const x = idx % this.N, z = (idx / this.N) | 0, p = this.cellPos(x, z);
-    this.particles.emit(p.x, .6, p.z, 22, { colors: [0xff3d00, 0xff9100, 0x555555], speed: 4, up: 3, life: .8 });
+    this.particles.emit(p.x, p.y + .6, p.z, 22, { colors: [0xff3d00, 0xff9100, 0x555555], speed: 4, up: 3, life: .8 });
     this.score += 5;
     this.shake = Math.max(this.shake, .25);
     if (!this.demo) this.sfx.noise(.2, .3, 700);
@@ -670,15 +635,27 @@ export class Game {
     return true;
   }
 
-  crash() {
+  crash(kind, wx, wz) {
     this.prev = this.body.map(p => ({ ...p }));
     this.t = 1;
     const h = this.body[0], p = this.cellPos(h.x, h.z);
-    this.particles.emit(p.x, .5, p.z, 30, { colors: [0xffffff, 0xffd400, this.skinColor(0)], speed: 5, up: 3, life: .8 });
+    if (kind === 'water') {
+      const w = this.cellPos(wx, wz);
+      this.particles.emit(w.x, -.3, w.z, 34, { colors: [0xffffff, 0xbfe8ff, 0x6ac8ff], speed: 3, up: 4, life: .9, floor: -.4 });
+      this.shockwave(w.x, w.z, 0xbfe8ff, 3, .6, -.32);
+    } else {
+      this.particles.emit(p.x, p.y + .5, p.z, 30, { colors: [0xffffff, 0xffd400, this.skinColor(0)], speed: 5, up: 3, life: .8 });
+    }
     this.shake = .7;
     if (this.demo) { this.respawn(true); return; }
-    this.sfx.crash();
-    this.popup('💥 -30', h.x, h.z, '#ff6b6b');
+    if (kind === 'water') {
+      this.sfx.noise(.5, .45, 500); this.sfx.tone(300, .25, 'sine', .15, 90);
+      this.popup('💦 -30', h.x, h.z, '#8fd8ff');
+      if (!this.waterHint) { this.waterHint = true; this.say('toast', '🌉 Use a bridge to cross!', '#8fd8ff'); }
+    } else {
+      this.sfx.crash();
+      this.popup(kind === 'fence' ? '🎋 -30' : '💥 -30', h.x, h.z, '#ff6b6b');
+    }
     if (this.damage(30)) { this.state = 'respawn'; this.respawnT = .9; }
   }
 
@@ -694,7 +671,7 @@ export class Game {
     this.input.clear();
     this.state = this.demo ? 'demo' : 'playing';
     const p = this.cellPos(s.x, s.z);
-    this.particles.emit(p.x, .5, p.z, 24, { color: 0xffffff, speed: 3, up: 3, life: .7 });
+    this.particles.emit(p.x, p.y + .5, p.z, 24, { color: 0xffffff, speed: 3, up: 3, life: .7 });
   }
 
   finish(kind) {
@@ -711,15 +688,15 @@ export class Game {
   tickEnd(dt) {
     if (this.endKind === 'won' && Math.random() < .25) {
       const h = this.head.group.position;
-      this.particles.emit(h.x + rand(-4, 4), rand(2, 5), h.z + rand(-4, 4), 20, {
-        colors: [0xff3b5c, 0xffd400, 0x43c463, 0x2f7bff, 0xd040fb, 0xffffff], speed: 5, up: 1, gravity: -4, life: 1.1,
+      this.particles.emit(h.x + rand(-4, 4), h.y + rand(2, 5), h.z + rand(-4, 4), 20, {
+        colors: [0xff3b5c, 0xffd400, 0x43c463, 0x2f7bff, 0xd040fb, 0xffffff], speed: 5, up: 1, gravity: -4, life: 1.1, floor: h.y - 2,
       });
     }
     if (this.endKind === 'dead') {
       const target = Math.floor(this.endT * 28);
       while (this.deathIdx < Math.min(target, this.body.length)) {
         const s = this.body[this.deathIdx], p = this.cellPos(s.x, s.z);
-        this.particles.emit(p.x, .4, p.z, 5, { colors: [this.skinColor(this.deathIdx * 2), 0xffffff], speed: 3, up: 3, life: .8 });
+        this.particles.emit(p.x, p.y + .4, p.z, 5, { colors: [this.skinColor(this.deathIdx * 2), 0xffffff], speed: 3, up: 3, life: .8 });
         this.deathIdx++;
       }
     }
@@ -751,13 +728,14 @@ export class Game {
   moveEnemy(e) {
     const N = this.N, h = this.body[0];
     const names = DIR_NAMES.slice().sort(() => Math.random() - .5);
-    const chase = !this.effects.invisible && !this.effects.fire && Math.random() < .25 + this.levelIndex * .035;
+    const near = Math.abs(e.x - h.x) + Math.abs(e.z - h.z) < 14;
+    const chase = near && !this.effects.invisible && !this.effects.fire && Math.random() < .25 + this.levelIndex * .035;
     if (chase) names.sort((a, b) => (Math.abs(e.x + DIRS[a].x - h.x) + Math.abs(e.z + DIRS[a].z - h.z)) - (Math.abs(e.x + DIRS[b].x - h.x) + Math.abs(e.z + DIRS[b].z - h.z)));
     if (this.effects.fire) names.sort((a, b) => (Math.abs(e.x + DIRS[b].x - h.x) + Math.abs(e.z + DIRS[b].z - h.z)) - (Math.abs(e.x + DIRS[a].x - h.x) + Math.abs(e.z + DIRS[a].z - h.z)));
     const bodySet = new Set(this.body.slice(1).map(p => p.z * N + p.x));
     for (const n of names) {
       const x = e.x + DIRS[n].x, z = e.z + DIRS[n].z, i = z * N + x;
-      if (!this.inBounds(x, z) || this.grid[i] || bodySet.has(i)) continue;
+      if (!this.inBounds(x, z) || this.isBlocked(i) || bodySet.has(i)) continue;
       if (this.enemies.some(o => o !== e && o.alive && o.x === x && o.z === z)) continue;
       e.px = e.x; e.pz = e.z; e.x = x; e.z = z; e.mt = 0;
       e.face = Math.atan2(DIRS[n].x, DIRS[n].z);
@@ -780,7 +758,7 @@ export class Game {
   aiDir() {
     const N = this.N, h = this.body[0];
     const blocked = new Uint8Array(N * N);
-    for (let i = 0; i < N * N; i++) blocked[i] = this.grid[i];
+    for (let i = 0; i < N * N; i++) blocked[i] = this.isBlocked(i) ? 1 : 0;
     for (let i = 0; i < this.body.length - 1; i++) blocked[this.body[i].z * N + this.body[i].x] = 1;
     const target = this.specials.find(s => s.key !== 'poison') || this.food;
     if (target) {
@@ -829,10 +807,10 @@ export class Game {
     this.magnetRing.visible = !!this.effects.magnet;
   }
 
-  shockwave(x, z, color, size = 6, dur = .7) {
+  shockwave(x, z, color, size = 6, dur = .7, y) {
     const mesh = M.makeShock(color);
     mesh.rotation.x = -Math.PI / 2;
-    mesh.position.set(x, .08, z);
+    mesh.position.set(x, (y ?? this.ground(x, z)) + .08, z);
     this.scene.add(mesh);
     this.shocks.push({ mesh, t: 0, size, dur });
   }
@@ -841,12 +819,14 @@ export class Game {
     const T = this.time;
     this.particles.update(dt);
     this.renderSnake(dt);
+    const g = (x, z) => this.ground(x, z);
 
     // food
     if (this.food) {
       const tp = this.cellPos(this.food.x, this.food.z);
       this.apple.position.x += (tp.x - this.apple.position.x) * Math.min(1, dt * 16);
       this.apple.position.z += (tp.z - this.apple.position.z) * Math.min(1, dt * 16);
+      this.apple.position.y = g(this.apple.position.x, this.apple.position.z);
       this.food.t = Math.min(1, this.food.t + dt * 3);
       const u = this.apple.userData;
       u.inner.position.y = Math.sin(T * 3) * .08;
@@ -857,12 +837,29 @@ export class Game {
       u.ring.material.opacity = .3 + Math.sin(T * 4) * .15;
     }
 
+    // pointer arrow toward the apple
+    const hp = this.head.group.position;
+    let showArrow = false;
+    if (this.food && !this.demo && (this.state === 'playing' || this.state === 'countdown')) {
+      const dx = this.apple.position.x - hp.x, dz = this.apple.position.z - hp.z, d = Math.hypot(dx, dz);
+      if (d > 4.5) {
+        showArrow = true;
+        const r = 1.7, ax = hp.x + dx / d * r, az = hp.z + dz / d * r;
+        this.arrow.position.set(ax, g(ax, az) + .25 + Math.sin(T * 6) * .05, az);
+        this.arrow.rotation.y = Math.atan2(dx, dz);
+        this.arrow.material.opacity = .55 + Math.sin(T * 6) * .25;
+        this.arrow.scale.setScalar(clamp(d / 10, .8, 1.25));
+      }
+    }
+    this.arrow.visible = showArrow;
+
     // specials
     for (const sp of this.specials) {
       const u = sp.mesh.userData;
       const tp = this.cellPos(sp.x, sp.z);
       sp.mesh.position.x += (tp.x - sp.mesh.position.x) * Math.min(1, dt * 16);
       sp.mesh.position.z += (tp.z - sp.mesh.position.z) * Math.min(1, dt * 16);
+      sp.mesh.position.y = g(sp.mesh.position.x, sp.mesh.position.z);
       const s = Math.max(.01, easeOutBack(Math.min(1, sp.t * 2.5)));
       sp.mesh.scale.setScalar(s);
       const bob = Math.sin(T * 3 + sp.x) * .1;
@@ -883,7 +880,8 @@ export class Game {
       const a = this.cellPos(e.px, e.pz).clone(), b = this.cellPos(e.x, e.z);
       const mt = e.mt, k = mt * mt * (3 - 2 * mt);
       const u = e.mesh.userData;
-      e.mesh.position.set(a.x + (b.x - a.x) * k, 0, a.z + (b.z - a.z) * k);
+      const ex = a.x + (b.x - a.x) * k, ez = a.z + (b.z - a.z) * k;
+      e.mesh.position.set(ex, g(ex, ez), ez);
       const hop = Math.sin(mt * Math.PI);
       u.pivot.position.y = hop * .45;
       const breathe = Math.sin(T * 5 + e.phase) * .06;
@@ -892,18 +890,7 @@ export class Game {
       const sp = easeOutBack(e.spawnT);
       u.pivot.scale.set(sxz * sp, sy * sp, sxz * sp);
       e.mesh.rotation.y = lerpAngle(e.mesh.rotation.y, e.face, Math.min(1, dt * 10));
-      u.body.material.emissiveIntensity = this.effects.fire ? .5 + Math.sin(T * 20) * .3 : .18;
-    }
-
-    // destroyed obstacles shrink away
-    if (this.destroying.length) {
-      for (let i = this.destroying.length - 1; i >= 0; i--) {
-        const k = this.destroying[i], o = this.obstacleData[k];
-        o.t += dt * 3;
-        if (o.t >= 1) { this.obstacles.setMatrixAt(k, ZERO); this.destroying.splice(i, 1); }
-        else { _m.compose(o.pos, o.quat, _s.copy(o.scl).multiplyScalar(1 - o.t)); this.obstacles.setMatrixAt(k, _m); }
-      }
-      this.obstacles.instanceMatrix.needsUpdate = true;
+      u.body.material.emissiveIntensity = this.effects.fire ? .5 + Math.sin(T * 20) * .3 : (this.theme.dark ? .6 : .18);
     }
 
     // shockwaves
@@ -915,14 +902,9 @@ export class Game {
       s.mesh.material.opacity = (1 - s.t) * .9;
     }
 
-    // environment
-    if (this.outside && (this.theme.water || this.theme.lava)) {
-      this.outside.position.y = -.4 + Math.sin(T * 1.2) * .06;
-      if (this.theme.lava) this.outside.material.emissiveIntensity = .75 + Math.sin(T * 2) * .2;
-    }
-    if (this.stars) this.stars.rotation.y = T * .01;
-
     this.updateCamera(dt);
+    const headPos = { x: hp.x, y: hp.y, z: hp.z };
+    this.world.update(dt, T, this.camLook, headPos);
   }
 
   renderSnake(dt) {
@@ -933,7 +915,8 @@ export class Game {
     const off = this.N / 2 - .5;
     for (let i = 0; i < n; i++) {
       const p = this.prev[i] || this.body[i], c = this.body[i];
-      pts[i].set(p.x + (c.x - p.x) * tt - off, 0, p.z + (c.z - p.z) * tt - off);
+      const x = p.x + (c.x - p.x) * tt - off, z = p.z + (c.z - p.z) * tt - off;
+      pts[i].set(x, this.ground(x, z), z);
     }
 
     const blinkOn = this.invuln > 0 && this.state !== 'respawn' && Math.floor(T * 12) % 2 === 0;
@@ -949,9 +932,10 @@ export class Game {
     const bob = Math.sin(T * (this.sprinting ? 20 : 11)) * .035;
     let hx = pts[0].x, hz = pts[0].z;
     if (this.state === 'respawn') { hx += rand(-.08, .08); hz += rand(-.08, .08); }
-    hg.position.set(hx, .45 + bob + (this.state === 'won' ? Math.abs(Math.sin(T * 8)) * .5 : 0), hz);
-    hg.rotation.y = this.headAngle + (this.state === 'won' ? T * 6 : 0);
-    hg.rotation.z = Math.sin(T * 6) * .05;
+    const fx = Math.sin(this.headAngle) * .45, fz = Math.cos(this.headAngle) * .45;
+    const pitch = Math.atan2(this.ground(hx + fx, hz + fz) - this.ground(hx - fx, hz - fz), .9);
+    hg.position.set(hx, this.ground(hx, hz) + .45 + bob + (this.state === 'won' ? Math.abs(Math.sin(T * 8)) * .5 : 0), hz);
+    hg.rotation.set(-pitch * .8, this.headAngle + (this.state === 'won' ? T * 6 : 0), Math.sin(T * 6) * .05, 'YXZ');
     hg.scale.setScalar(1 + this.eatPulse * .25);
 
     const sk = M.SKINS[this.skinIndex];
@@ -1008,7 +992,7 @@ export class Game {
             const w = Math.sin(T * 9 - u * .55) * amp * Math.min(1, u / 4);
             x += (-tz / len) * w; z += (tx / len) * w;
           }
-          _m.compose(_p.set(x, .38 * s + .03, z), _q.identity(), _s.set(s, s * .92, s));
+          _m.compose(_p.set(x, this.ground(x, z) + .38 * s + .03, z), _q.identity(), _s.set(s, s * .92, s));
           this.bodyMesh.setMatrixAt(k, _m);
           this.bodyMesh.setColorAt(k, _c.set(this.skinColor(u)));
           k++;
@@ -1021,31 +1005,37 @@ export class Game {
 
     // magnet ring
     if (this.magnetRing.visible) {
-      this.magnetRing.position.set(hg.position.x, .15, hg.position.z);
+      this.magnetRing.position.set(hg.position.x, this.ground(hg.position.x, hg.position.z) + .15, hg.position.z);
       this.magnetRing.scale.setScalar(1 + Math.sin(T * 8) * .15);
       this.magnetRing.rotation.z = T * 3;
     }
   }
 
   updateCamera(dt) {
-    const N = this.N, aspect = innerWidth / innerHeight;
+    const aspect = innerWidth / innerHeight;
     const look = this.camTarget;
+    const hp = this.head.group.position;
+    const half = this.N / 2;
     if (this.state === 'demo') {
-      const a = this.time * .12, r = N * .75;
-      this.camDesired.set(Math.sin(a) * r, N * .72, Math.cos(a) * r);
-      look.set(0, 0, 0);
+      // slow cinematic orbit around the demo snake
+      const a = this.time * .1, r = 15;
+      look.set(clamp(hp.x, -half + 4, half - 4), hp.y - .3, clamp(hp.z, -half + 4, half - 4));
+      this.camDesired.set(look.x + Math.sin(a) * r, look.y + 11, look.z + Math.cos(a) * r);
     } else {
-      const hp = this.head.group.position;
-      const lim = Math.max(0, N / 2 - (aspect < 1 ? 4 : 6));
-      look.set(clamp(hp.x, -lim, lim), 0, clamp(hp.z, -lim, lim));
-      const dist = (aspect < 1 ? 17 : 16) + Math.max(0, N - 18) * .25;
-      this.camDesired.set(look.x, dist, look.z + dist * .62);
+      const d = DIRS[this.dirName];
+      const alive = this.state === 'playing' || this.state === 'countdown';
+      this.lookAhead.lerp(_v.set(alive ? d.x * 2.2 : 0, 0, alive ? d.z * 2.2 : 0), 1 - Math.exp(-dt * 2));
+      const lim = half - (aspect < 1 ? 3 : 5);
+      look.set(clamp(hp.x + this.lookAhead.x, -lim, lim), 0, clamp(hp.z + this.lookAhead.z, -lim, lim));
+      look.y = this.ground(look.x, look.z) * .7 + hp.y * .3 - .3;
+      const dist = aspect < 1 ? 15.5 : 13.5;
+      this.camDesired.set(look.x, look.y + dist * .86, look.z + dist * .58);
     }
     if (this.snapCamera) {
       this.camPos.copy(this.camDesired); this.camLook.copy(look); this.snapCamera = false;
     } else {
-      this.camPos.lerp(this.camDesired, 1 - Math.exp(-dt * 3.5));
-      this.camLook.lerp(look, 1 - Math.exp(-dt * 5));
+      this.camPos.lerp(this.camDesired, 1 - Math.exp(-dt * 3.2));
+      this.camLook.lerp(look, 1 - Math.exp(-dt * 4.5));
     }
     this.camera.position.copy(this.camPos);
     if (this.shake > 0) {
@@ -1059,7 +1049,7 @@ export class Game {
       this.camera.fov += (fov - this.camera.fov) * Math.min(1, dt * 6);
       this.camera.updateProjectionMatrix();
     }
-    this.sun.position.set(this.camLook.x + 10, 26, this.camLook.z + 8);
+    this.sun.position.copy(this.camLook).add(this.sunOffset);
     this.sun.target.position.copy(this.camLook);
   }
 

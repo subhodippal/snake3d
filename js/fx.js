@@ -37,6 +37,7 @@ export class Particles {
       p.life = p.max = (o.life ?? 0.8) * (0.6 + Math.random() * 0.6);
       p.s = (o.size ?? 1) * (0.6 + Math.random() * 0.8);
       p.drag = o.drag ?? 0.98;
+      p.floor = o.floor ?? (y - 0.5);
       p.alive = true;
       const col = o.colors ? o.colors[(Math.random() * o.colors.length) | 0] : (o.color ?? 0xffffff);
       this.mesh.setColorAt(idx, _c.set(col));
@@ -53,7 +54,7 @@ export class Particles {
       p.vy += p.g * dt;
       p.vx *= p.drag; p.vz *= p.drag;
       p.x += p.vx * dt; p.y += p.vy * dt; p.z += p.vz * dt;
-      if (p.y < 0.05) { p.y = 0.05; p.vy *= -0.4; p.vx *= 0.7; p.vz *= 0.7; }
+      if (p.y < p.floor) { p.y = p.floor; p.vy *= -0.4; p.vx *= 0.7; p.vz *= 0.7; }
       const s = p.s * Math.min(1, (p.life / p.max) * 1.6);
       _m.compose(_p.set(p.x, p.y, p.z), _q, _s.set(s, s, s));
       this.mesh.setMatrixAt(i, _m);
