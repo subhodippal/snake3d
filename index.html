@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#0f1630" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="description" content="Slither 3D – a 3D snake game with 10 levels, 10 maps and 9 special fruits. Plays in the browser on mobile and desktop." />
+  <title>Slither 3D – Snake Adventure</title>
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Slither 3D" />
+  <meta name="application-name" content="Slither 3D" />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="icon" type="image/svg+xml" href="icons/icon.svg" />
+  <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css" />
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+      }
+    }
+  </script>
+</head>
+<body>
+  <canvas id="game"></canvas>
+
+  <div id="loading" class="screen show"><div class="spinner"></div><p>Loading Slither 3D…</p></div>
+
+  <!-- Main menu -->
+  <div id="menu" class="screen">
+    <div class="panel menu-panel">
+      <h1 class="logo">SLITHER<span>3D</span></h1>
+      <p class="tag">Slither · Feast · Survive</p>
+      <button class="btn big primary" data-act="adventure">▶ Adventure <small>10 levels</small></button>
+      <button class="btn big" data-act="endless">∞ Endless <small>how long can you grow?</small></button>
+      <button class="btn big" data-act="time">⏱ Time Attack <small>90 seconds</small></button>
+      <div class="row">
+        <button class="btn" data-act="howto">❓ How to play</button>
+        <button class="btn" data-act="settings">⚙️ Settings</button>
+      </div>
+      <div class="row">
+        <button class="btn ghost small" data-act="fullscreen" id="btn-fullscreen">⛶ Fullscreen</button>
+        <button class="btn small install hidden" data-act="install" id="btn-install">📲 Install app</button>
+      </div>
+      <p id="install-hint" class="install-hint hidden"></p>
+    </div>
+  </div>
+
+  <!-- Level / map select -->
+  <div id="levels" class="screen">
+    <div class="panel wide">
+      <h2 id="levels-title">Select Level</h2>
+      <p id="levels-sub" class="sub"></p>
+      <div id="level-grid"></div>
+      <button class="btn" data-act="back">← Back</button>
+    </div>
+  </div>
+
+  <!-- How to play -->
+  <div id="howto" class="screen">
+    <div class="panel wide scroll">
+      <h2>How to play</h2>
+      <div class="howto-grid">
+        <div class="card">
+          <h3>⌨️ Desktop</h3>
+          <p><b>Arrow keys / WASD</b> to turn.</p>
+          <p><b>Hold</b> the direction key you're moving in to <b>sprint</b> (or hold Space / Shift).</p>
+          <p><b>P / Esc</b> to pause.</p>
+        </div>
+        <div class="card">
+          <h3>📱 Mobile</h3>
+          <p><b>Swipe</b> up / down / left / right to turn.</p>
+          <p><b>Tap &amp; hold</b> anywhere to <b>sprint</b>.</p>
+          <p>Prefer buttons? Turn on <b>Button mode</b> in Settings for a 4-way D-pad and a boost button.</p>
+        </div>
+        <div class="card">
+          <h3>🎯 Goal</h3>
+          <p>Eat 🍎 apples to grow. Each level asks for a number of apples <b>and</b> ★ special fruits.</p>
+          <p>Hitting walls, obstacles, yourself or 👾 slimes costs ❤️ health. At zero health it's game over.</p>
+          <p>Sprinting while you eat gives <b>double points</b>!</p>
+        </div>
+      </div>
+      <h3>Special fruits</h3>
+      <div id="fruit-list" class="fruit-list"></div>
+      <button class="btn" data-act="back">← Back</button>
+    </div>
+  </div>
+
+  <!-- Settings -->
+  <div id="settings" class="screen">
+    <div class="panel">
+      <h2>Settings</h2>
+      <div class="setting">
+        <span>Touch controls</span>
+        <div class="seg" id="set-control">
+          <button data-val="swipe">Swipe</button>
+          <button data-val="buttons">Buttons</button>
+        </div>
+      </div>
+      <div class="setting">
+        <span>Sound</span>
+        <div class="seg" id="set-sound">
+          <button data-val="on">On</button>
+          <button data-val="off">Off</button>
+        </div>
+      </div>
+      <div class="setting">
+        <span>Graphics</span>
+        <div class="seg" id="set-quality">
+          <button data-val="high">High</button>
+          <button data-val="low">Fast</button>
+        </div>
+      </div>
+      <button class="btn danger small" data-act="reset-progress">Reset progress</button>
+      <button class="btn" data-act="back">← Back</button>
+    </div>
+  </div>
+
+  <!-- HUD -->
+  <div id="hud" class="hidden">
+    <div class="hud-top">
+      <button id="btn-pause" class="icon-btn" aria-label="Pause">⏸</button>
+      <div class="hud-block grow">
+        <div id="hud-level" class="hud-level"></div>
+        <div class="health"><div id="hud-health" class="health-fill"></div><span id="hud-health-text">100</span></div>
+      </div>
+      <div class="hud-block right">
+        <div id="hud-score" class="hud-score">0</div>
+        <div class="goals">
+          <span id="hud-food" class="pill">🍎 0</span>
+          <span id="hud-special" class="pill">★ 0</span>
+          <span id="hud-timer" class="pill hidden">⏱ 90</span>
+        </div>
+      </div>
+    </div>
+    <div id="hud-effects" class="effects"></div>
+    <div id="sprint-badge" class="sprint-badge">💨 SPRINT</div>
+  </div>
+
+  <!-- D-pad -->
+  <div id="dpad" class="hidden">
+    <div class="pad">
+      <button data-dir="up" class="d up" aria-label="Up">▲</button>
+      <button data-dir="left" class="d left" aria-label="Left">◀</button>
+      <button data-dir="right" class="d right" aria-label="Right">▶</button>
+      <button data-dir="down" class="d down" aria-label="Down">▼</button>
+    </div>
+    <button data-boost class="boost" aria-label="Sprint">💨<small>SPRINT</small></button>
+  </div>
+
+  <div id="intro" class="intro hidden"></div>
+  <div id="countdown" class="countdown"></div>
+  <div id="toast" class="toast"></div>
+  <div id="popups"></div>
+  <div id="flash"></div>
+
+  <!-- Pause -->
+  <div id="pause" class="screen">
+    <div class="panel">
+      <h2>Paused</h2>
+      <button class="btn big primary" data-act="resume">▶ Resume</button>
+      <button class="btn big" data-act="restart">↻ Restart</button>
+      <button class="btn big" data-act="menu">⌂ Main menu</button>
+    </div>
+  </div>
+
+  <!-- Result -->
+  <div id="result" class="screen">
+    <div class="panel">
+      <h2 id="result-title">Level Complete!</h2>
+      <div id="result-stars" class="stars"></div>
+      <div id="result-stats" class="stats"></div>
+      <button class="btn big primary" data-act="next" id="btn-next">Next level ▶</button>
+      <button class="btn big" data-act="restart">↻ Play again</button>
+      <button class="btn big" data-act="menu">⌂ Main menu</button>
+    </div>
+  </div>
+
+  <noscript><div class="screen show"><div class="panel"><h2>Please enable JavaScript to play.</h2></div></div></noscript>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
