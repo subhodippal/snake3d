@@ -74,6 +74,27 @@ const B = {
     color: white ? 0xf4f4f4 : 0xb08a68, belly: 0xf0e8e0, h: .2, bodyScale: [.3, .28, .42], headR: .12, headUp: .12, ears: 'long', earColor: white ? 0xffe0e8 : 0xa07a58,
     legLen: .1, legR: .035, tail: { geo: sph(.06, 6, 4), color: 0xffffff, pos: [0, .02, -.02], scale: [1, 1, 1] },
   }),
+  elephant: () => {
+    const a = quad({ color: 0x8c8c9a, belly: 0xa0a0ae, h: .62, bodyScale: [.62, .58, .9], headR: .22, headUp: .1, ears: 'round', earColor: 0x9a9aaa, legLen: .5, legR: .1,
+      tail: { geo: cyl(.02, .015, .3, 4), pos: [0, -.1, 0], scale: [1, 1, 1] } });
+    add(a.head, cyl(.07, .04, .5, 8), 0x8c8c9a, [0, -.22, .3], [1, 1, 1], [.55, 0, 0]);
+    for (const sx of [-1, 1]) {
+      add(a.head, cone(.035, .3, 5), 0xf4f0e0, [sx * .13, -.18, .3], [1, 1, 1], [1.2, 0, sx * -.2]);
+    }
+    a.ears.forEach(e => e.scale.set(.9, 1.6, 1.4));
+    return a;
+  },
+  giraffe: () => {
+    const a = quad({ color: 0xe8b64a, belly: 0xf4dca0, h: 1.0, bodyScale: [.4, .44, .8], headR: .12, headUp: .95, ears: 'point', earColor: 0xe8b64a, horns: 0x6a4a2a, snout: 0xc89a4a,
+      legLen: .9, legR: .045, legColor: 0xf0d090, tail: { geo: cyl(.015, .01, .4, 4), pos: [0, -.15, 0], scale: [1, 1, 1] } });
+    add(a.body, cyl(.07, .1, .95, 8), 0xe8b64a, [0, 1.5, .4], [1, 1, 1], [.2, 0, 0]);
+    for (let i = 0; i < 9; i++) add(a.body, sph(.06, 6, 5), 0x8a5a2a, [Math.cos(i * 2.3) * .2, 1.05 + (i % 3) * .1, Math.sin(i * 1.7) * .3], [1, .5, 1]);
+    return a;
+  },
+  bear: () => quad({
+    color: 0x7a5232, belly: 0x8a6240, h: .5, bodyScale: [.5, .5, .74], headR: .17, headUp: .14, ears: 'round', earColor: 0x6a4424, snout: 0xc8a070,
+    legLen: .36, legR: .09, tail: { geo: sph(.06, 6, 4), pos: [0, .02, 0], scale: [1, 1, 1] },
+  }),
   deer: () => quad({
     color: 0xb0703a, belly: 0xf0e0c8, h: .72, bodyScale: [.36, .38, .8], headR: .12, headUp: .32, ears: 'point', snout: 0x3a2a1a,
     legLen: .62, legR: .032, antlers: Math.random() < .5 ? 0xd8c8a0 : null, tail: { geo: sph(.05, 6, 4), color: 0xffffff, pos: [0, .05, 0], scale: [1, 1.4, 1] },
@@ -264,6 +285,9 @@ const B = {
 
 // behaviour config
 const KINDS = {
+  elephant: { build: B.elephant, move: 'walk', speed: .75, rate: 5, flee: 4.5, scale: 2.3, idle: [3, 8] },
+  giraffe: { build: B.giraffe, move: 'walk', speed: 1.0, rate: 6, flee: 4, scale: 1.9, idle: [3, 7] },
+  bear: { build: B.bear, move: 'walk', speed: 1.1, rate: 7, flee: 3.5, scale: 1.6, idle: [2, 6] },
   rabbit: { build: () => B.rabbit(false), move: 'hop', speed: 2.6, hop: .32, rate: 7 },
   whiteRabbit: { build: () => B.rabbit(true), move: 'hop', speed: 2.6, hop: .32, rate: 7 },
   deer: { build: B.deer, move: 'walk', speed: 1.6, rate: 6, flee: 4 },

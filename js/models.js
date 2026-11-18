@@ -3,7 +3,7 @@
 // ───────────────────────────────────────────────────────────
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { FRUITS } from './levels.js';
+import { FRUITS, POTION_MODEL } from './levels.js';
 
 const _e = new THREE.Euler(), _q = new THREE.Quaternion(), _m = new THREE.Matrix4(), _c = new THREE.Color();
 const V = (a) => new THREE.Vector3(a[0], a[1], a[2]);
@@ -39,6 +39,32 @@ const BUILD = {
   tree: () => merge([
     P(Cyl(.1, .16, 1.0, 8), 0x7a4b2a, [0, .5, 0]),
     P(Ico(.55, 1), 0x3f9a3a, [0, 1.35, 0]), P(Ico(.42, 1), 0x52b348, [.26, 1.62, .1]), P(Ico(.38, 1), 0x3a8e34, [-.22, 1.55, -.16]),
+  ]),
+  bigTree: () => merge([
+    P(Cyl(.24, .38, 2.2, 10), 0x6a4426, [0, 1.1, 0]),
+    P(Ico(1.05, 1), 0x2f8a34, [0, 2.7, 0]), P(Ico(.8, 1), 0x45a840, [.6, 3.15, .25]), P(Ico(.75, 1), 0x36963a, [-.55, 3.05, -.35]),
+    P(Ico(.6, 1), 0x4fb04a, [.1, 3.6, -.1]), P(Ico(.55, 1), 0x2f8a34, [-.3, 2.5, .65]),
+  ]),
+  smallTree: () => merge([
+    P(Cyl(.05, .08, .55, 6), 0x7a4b2a, [0, .27, 0]),
+    P(Ico(.3, 1), 0x58b84c, [0, .75, 0]), P(Ico(.2, 1), 0x6ac85a, [.12, .95, .05]),
+  ]),
+  bigPine: () => merge([
+    P(Cyl(.2, .3, 1.0, 8), 0x6b4423, [0, .5, 0]),
+    P(Cone(1.15, 1.6, 10), 0x2a6636, [0, 1.6, 0]), P(Cone(.9, 1.4, 10), 0x327440, [0, 2.5, 0]), P(Cone(.62, 1.1, 10), 0x3a8448, [0, 3.3, 0]), P(Cone(.35, .8, 10), 0x449552, [0, 3.95, 0]),
+  ]),
+  bigAutumnTree: () => merge([
+    P(Cyl(.24, .38, 2.2, 10), 0x5e3c22, [0, 1.1, 0]),
+    P(Ico(1.05, 1), 0xe8802a, [0, 2.7, 0]), P(Ico(.8, 1), 0xf0b030, [.6, 3.15, .25]), P(Ico(.75, 1), 0xc8501e, [-.55, 3.05, -.35]),
+    P(Ico(.6, 1), 0xf0a030, [.1, 3.6, -.1]), P(Ico(.55, 1), 0xd0641e, [-.3, 2.5, .65]),
+  ]),
+  autumnTree: () => merge([
+    P(Cyl(.1, .16, 1.0, 8), 0x6a4226, [0, .5, 0]),
+    P(Ico(.55, 1), 0xe8802a, [0, 1.35, 0]), P(Ico(.42, 1), 0xf0b030, [.26, 1.62, .1]), P(Ico(.38, 1), 0xc8501e, [-.22, 1.55, -.16]),
+  ]),
+  autumnBush: () => merge([
+    P(Ico(.42), 0xd0641e, [0, .32, 0], [0, 0, 0], [1, .8, 1]),
+    P(Ico(.3), 0xe8a030, [.22, .45, .12]), P(Ico(.26), 0xb8461a, [-.2, .4, -.15]),
   ]),
   bush: () => merge([
     P(Ico(.42), 0x3f9e3a, [0, .32, 0], [0, 0, 0], [1, .8, 1]),
@@ -483,37 +509,46 @@ export function waterTexture() {
 
 // ── Snake head ──────────────────────────────────────────────
 export function makeHead() {
+  // a cute, round snake face: big shiny eyes, rosy cheeks and a little smile
   const group = new THREE.Group();
-  const mat = new THREE.MeshStandardMaterial({ color: 0x43c463, roughness: .3, metalness: .08 });
-  const skull = new THREE.Mesh(Sph(.5, 28, 20), mat);
-  skull.scale.set(1, .78, 1.15); skull.castShadow = true;
-  const snout = new THREE.Mesh(Sph(.38, 24, 16), mat);
-  snout.position.set(0, -.06, .36); snout.scale.set(1, .62, 1); snout.castShadow = true;
-  group.add(skull, snout);
+  const mat = new THREE.MeshStandardMaterial({ color: 0x43c463, roughness: .3, metalness: .05 });
+  const markMat = new THREE.MeshStandardMaterial({ color: 0x1f6a30, roughness: .45 });
+  const skull = new THREE.Mesh(Sph(.56, 28, 20), mat);
+  skull.scale.set(1.12, .88, 1.05); skull.position.y = .02; skull.castShadow = true;
+  const snout = new THREE.Mesh(Sph(.34, 22, 16), mat);
+  snout.position.set(0, -.1, .42); snout.scale.set(.95, .62, .85); snout.castShadow = true;
+  const spot = new THREE.Mesh(Sph(.18, 12, 8), markMat);
+  spot.position.set(0, .45, -.12); spot.scale.set(.9, .14, 1.2);
+  group.add(skull, snout, spot);
 
-  const white = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: .2 });
-  const black = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: .1 });
+  const white = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: .15 });
+  const black = new THREE.MeshStandardMaterial({ color: 0x0c0c12, roughness: .08 });
+  const glintM = new THREE.MeshBasicMaterial({ color: 0xffffff });
   const eyes = [];
   for (const s of [-1, 1]) {
     const eye = new THREE.Group();
-    eye.position.set(s * .24, .24, .2);
-    const ball = new THREE.Mesh(Sph(.155, 16, 12), white);
-    const pupil = new THREE.Mesh(Sph(.085, 12, 10), black);
-    pupil.position.set(s * .02, .02, .1);
-    const glint = new THREE.Mesh(Sph(.03, 8, 6), white);
-    glint.position.set(s * .0 + .03, .07, .17);
-    eye.add(ball, pupil, glint);
+    eye.position.set(s * .3, .3, .3);
+    const ball = new THREE.Mesh(Sph(.21, 18, 14), white);
+    const pupil = new THREE.Mesh(Sph(.13, 14, 10), black);
+    pupil.position.set(s * .012, -.005, .13);
+    const g1 = new THREE.Mesh(Sph(.05, 8, 6), glintM); g1.position.set(s * .045 + .02, .06, .225);
+    const g2 = new THREE.Mesh(Sph(.025, 6, 5), glintM); g2.position.set(s * .02 - .03, -.045, .235);
+    eye.add(ball, pupil, g1, g2);
     group.add(eye); eyes.push(eye);
   }
-  // nostrils
-  for (const s of [-1, 1]) {
-    const n = new THREE.Mesh(Sph(.03, 6, 4), black);
-    n.position.set(s * .1, .05, .72); group.add(n);
-  }
+  // rosy cheeks
+  const blush = new THREE.MeshStandardMaterial({ color: 0xff8fa8, roughness: .6, emissive: 0x601030, emissiveIntensity: .35 });
+  for (const s of [-1, 1]) { const c = new THREE.Mesh(Sph(.11, 10, 8), blush); c.position.set(s * .47, -.02, .36); c.scale.set(1, .65, .35); c.rotation.y = s * .5; group.add(c); }
+  // little smile + nostrils
+  const smile = new THREE.Mesh(new THREE.TorusGeometry(.12, .014, 6, 14, Math.PI), black);
+  smile.position.set(0, -.04, .72); smile.rotation.z = Math.PI;
+  group.add(smile);
+  for (const s of [-1, 1]) { const n = new THREE.Mesh(Sph(.02, 6, 4), black); n.position.set(s * .075, .05, .73); group.add(n); }
+  const parts = [...group.children];
   // forked tongue
   const tMat = new THREE.MeshStandardMaterial({ color: 0xff2a55, roughness: .4 });
   const tongue = new THREE.Group();
-  tongue.position.set(0, -.12, .62);
+  tongue.position.set(0, -.1, .66);
   const t1 = new THREE.Mesh(Box(.06, .02, .38), tMat); t1.position.z = .19;
   const fl = new THREE.Mesh(Box(.035, .02, .16), tMat); fl.position.set(-.04, 0, .43); fl.rotation.y = .45;
   const fr = new THREE.Mesh(Box(.035, .02, .16), tMat); fr.position.set(.04, 0, .43); fr.rotation.y = -.45;
@@ -533,7 +568,7 @@ export function makeHead() {
   crown.visible = false;
   group.add(crown);
 
-  return { group, mat, eyes, tongue, crown, fireMat: fMat };
+  return { group, mat, markMat, eyeMat: white, eyes, tongue, crown, parts, fireMat: fMat };
 }
 
 // ── Food ────────────────────────────────────────────────────
@@ -574,22 +609,308 @@ function sharedGeo(key, make) {
   return shared[key];
 }
 
+const fmat = (color, o = {}) => new THREE.MeshStandardMaterial({ color, roughness: .35, ...o });
+let melonTex = null;
+function watermelonTexture() {
+  if (melonTex) return melonTex;
+  const c = document.createElement('canvas'); c.width = 128; c.height = 64;
+  const g = c.getContext('2d');
+  g.fillStyle = '#2f8f3a'; g.fillRect(0, 0, 128, 64);
+  g.fillStyle = '#1b5e28';
+  for (let i = 0; i < 8; i++) { g.beginPath(); g.moveTo(i * 16, 0); g.quadraticCurveTo(i * 16 + 6, 32, i * 16, 64); g.lineTo(i * 16 + 7, 64); g.quadraticCurveTo(i * 16 + 13, 32, i * 16 + 7, 0); g.fill(); }
+  melonTex = new THREE.CanvasTexture(c); melonTex.colorSpace = THREE.SRGBColorSpace;
+  return melonTex;
+}
+
+/** A fruit or critter model. Sits on y = 0, faces +z. userData: { inner, ring }. */
+export function makeFood(kind) {
+  let liquid = null;
+  const g = new THREE.Group(), inner = new THREE.Group();
+  g.add(inner);
+  const add = (geo, color, pos = [0, 0, 0], scl = [1, 1, 1], o = {}, rot = null) => {
+    const m = new THREE.Mesh(geo, fmat(color, o));
+    m.position.set(pos[0], pos[1], pos[2]); m.scale.set(scl[0], scl[1], scl[2]); m.castShadow = true;
+    if (rot) m.rotation.set(rot[0], rot[1], rot[2]);
+    inner.add(m); return m;
+  };
+  const leaf = (x, y, z) => add(Sph(.13, 10, 8), 0x3ec64a, [x, y, z], [1, .25, .5], { roughness: .5 }, [0, 0, -.5]);
+  switch (kind) {
+    case 'orange':
+      add(Sph(.33, 22, 16), 0xff9a1a, [0, .37, 0], [1, .95, 1], { roughness: .55, emissive: 0x331a00 });
+      add(Cyl(.02, .02, .08, 6), 0x5a3a1a, [0, .72, 0]); leaf(.1, .72, 0);
+      break;
+    case 'banana': {
+      const arc = Math.PI * .85, rz = Math.PI + (Math.PI - arc) / 2;
+      add(new THREE.TorusGeometry(.3, .085, 8, 18, arc), 0xffe14a, [0, .42, 0], [1, 1, 1], { roughness: .45, emissive: 0x403000 }, [0, 0, rz]);
+      for (const ang of [rz, rz + arc]) add(Sph(.05, 8, 6), 0x5a3a1a, [Math.cos(ang) * .3, .42 + Math.sin(ang) * .3, 0]);
+      break;
+    }
+    case 'cherry':
+      add(Sph(.17, 16, 12), 0xc4122a, [-.15, .2, 0], [1, 1, 1], { roughness: .2, emissive: 0x300008 });
+      add(Sph(.17, 16, 12), 0xc4122a, [.15, .18, .05], [1, 1, 1], { roughness: .2, emissive: 0x300008 });
+      add(Cyl(.015, .015, .5, 5), 0x4a7a2a, [-.07, .5, 0], [1, 1, 1], {}, [0, 0, .28]);
+      add(Cyl(.015, .015, .5, 5), 0x4a7a2a, [.07, .5, .02], [1, 1, 1], {}, [0, 0, -.28]);
+      leaf(.1, .72, 0);
+      break;
+    case 'grape': {
+      const pts = [[0, .18, 0], [-.15, .26, 0], [.15, .26, 0], [0, .26, .15], [0, .26, -.15], [-.08, .4, .06], [.08, .4, -.06], [0, .52, 0]];
+      pts.forEach(p => add(Sph(.13, 12, 10), 0x8a3ad8, p, [1, 1, 1], { roughness: .2, emissive: 0x200848 }));
+      add(Cyl(.02, .02, .14, 6), 0x5a3a1a, [0, .66, 0]); leaf(.1, .68, 0);
+      break;
+    }
+    case 'strawberry':
+      add(Sph(.3, 20, 14), 0xe8203a, [0, .38, 0], [.85, 1.05, .85], { roughness: .3, emissive: 0x300008 });
+      add(Cone(.17, .1, 6), 0x3ec64a, [0, .7, 0], [1, 1, 1], {}, [Math.PI, 0, 0]);
+      for (let i = 0; i < 9; i++) { const an = i * 2.4, y = .2 + (i % 3) * .14; add(Sph(.022, 5, 4), 0xffe27a, [Math.cos(an) * .24 * (1 - (y - .2) * .5), y, Math.sin(an) * .24 * (1 - (y - .2) * .5)]); }
+      break;
+    case 'watermelon': {
+      const m = add(Sph(.4, 24, 18), 0xffffff, [0, .4, 0], [1.2, .95, 1], { roughness: .45 });
+      m.material.map = watermelonTexture();
+      add(Cyl(.02, .02, .1, 6), 0x5a3a1a, [0, .8, 0]);
+      break;
+    }
+    case 'mouse': {
+      add(Sph(.26, 16, 12), 0x9a9aa8, [0, .22, -.02], [.85, .8, 1.25]);
+      add(Sph(.16, 14, 10), 0xaaaab8, [0, .24, .3], [.9, .85, 1.1]);
+      add(Sph(.04, 8, 6), 0xff8aa8, [0, .22, .47]);
+      for (const sx of [-1, 1]) {
+        add(Sph(.1, 10, 8), 0xffb0c0, [sx * .13, .4, .24], [1, 1, .25]);
+        add(Sph(.028, 8, 6), 0x111111, [sx * .08, .3, .4]);
+      }
+      add(Cyl(.018, .01, .4, 5), 0xffa0b8, [0, .12, -.42], [1, 1, 1], {}, [1.2, 0, 0]);
+      break;
+    }
+    case 'frog': {
+      add(Sph(.3, 16, 12), 0x4ccf4c, [0, .24, 0], [1, .7, 1.1]);
+      add(Sph(.2, 14, 10), 0x5fdc5f, [0, .27, .22], [1, .75, 1]);
+      for (const sx of [-1, 1]) {
+        add(Sph(.085, 10, 8), 0xffffff, [sx * .13, .45, .24]);
+        add(Sph(.04, 8, 6), 0x111111, [sx * .13, .46, .31]);
+        add(Sph(.11, 10, 8), 0x3cb83c, [sx * .3, .1, -.1], [.6, .5, 1.1]);
+        add(Sph(.07, 8, 6), 0x3cb83c, [sx * .2, .06, .25], [1, .5, 1]);
+      }
+      break;
+    }
+    case 'litchi':
+      add(Sph(.3, 18, 14), 0xd8283a, [0, .34, 0], [1, .95, 1], { roughness: .6 });
+      for (let i = 0; i < 22; i++) { const yv = 1 - (i + .5) / 22 * 2, rr = Math.sqrt(1 - yv * yv), th = i * 2.4; add(Sph(.05, 5, 4), 0xf06070, [Math.cos(th) * rr * .3, .34 + yv * .28, Math.sin(th) * rr * .3]); }
+      add(Cyl(.02, .02, .1, 5), 0x5a3a1a, [0, .68, 0]); leaf(.1, .7, 0);
+      break;
+    case 'pumpkin':
+      for (let i = 0; i < 5; i++) add(Sph(.3, 14, 10), 0xf08a1c, [0, .32, 0], [.75, .9, 1], { roughness: .55 }, [0, i / 5 * Math.PI, 0]);
+      add(Cyl(.05, .07, .16, 6), 0x4a7a2a, [0, .66, 0]); add(Sph(.05, 6, 5), 0x4a7a2a, [.07, .72, 0]);
+      break;
+    case 'cake':
+      add(Cyl(.4, .4, .2, 20), 0xfff0d8, [0, .1, 0]);
+      add(Cyl(.3, .3, .18, 20), 0xff9ab8, [0, .29, 0]);
+      add(new THREE.TorusGeometry(.3, .03, 6, 20), 0xffffff, [0, .39, 0], [1, 1, 1], {}, [Math.PI / 2, 0, 0]);
+      add(Sph(.07, 8, 6), 0xd8182a, [0, .47, 0]);
+      add(Cyl(.018, .018, .16, 5), 0xffffff, [.12, .5, 0]); add(Sph(.035, 6, 5), 0xffb020, [.12, .62, 0], [1, 1.4, 1], { emissive: 0xff8000, emissiveIntensity: 1 });
+      break;
+    case 'samosa':
+      add(new THREE.TetrahedronGeometry(.46), 0xd89a3a, [0, .3, 0], [1, 1, 1], { roughness: .7 }, [0.6155, Math.PI / 4, 0]);
+      add(new THREE.TetrahedronGeometry(.4), 0xe8b04a, [0, .33, 0], [.9, .9, .9], { roughness: .8 }, [0.6155, Math.PI / 4, 0]);
+      for (let i = 0; i < 5; i++) add(Sph(.04, 5, 4), 0xb07020, [-.15 + i * .075, .55 - Math.abs(i - 2) * .02, .12]);
+      break;
+    case 'pizza': {
+      const wedge = new THREE.CylinderGeometry(.55, .55, .07, 14, 1, false, 0, Math.PI / 2.2);
+      add(wedge, 0xf2c14a, [-.05, .2, .22], [1, 1, 1], { roughness: .6 }, [.28, 2.3, 0]);
+      add(new THREE.CylinderGeometry(.56, .56, .1, 14, 1, true, 0, Math.PI / 2.2), 0xd8913a, [-.05, .2, .22], [1, 1, 1], { roughness: .7 }, [.28, 2.3, 0]);
+      for (const p of [[.05, .27, .1], [.15, .3, .22], [-.02, .31, .3]]) add(Cyl(.07, .07, .03, 10), 0xc4281e, p);
+      add(Sph(.035, 5, 4), 0x2a8a2a, [.1, .3, .05]);
+      break;
+    }
+    case 'burger':
+      add(Cyl(.34, .3, .1, 18), 0xd8913a, [0, .1, 0]);
+      add(Cyl(.36, .36, .1, 18), 0x5a3018, [0, .2, 0], [1, 1, 1], { roughness: .8 });
+      add(Box(.62, .025, .62), 0xffd23a, [0, .27, 0], [1, 1, 1], {}, [0, Math.PI / 4, 0]);
+      add(Cyl(.33, .33, .04, 16), 0xd8302a, [0, .3, 0]);
+      add(Cyl(.38, .38, .04, 14), 0x4cb84a, [0, .34, 0]);
+      add(new THREE.SphereGeometry(.36, 18, 10, 0, Math.PI * 2, 0, Math.PI / 2), 0xe0953a, [0, .36, 0], [1, .9, 1], { roughness: .5 });
+      for (let i = 0; i < 7; i++) add(Sph(.025, 5, 4), 0xfff0c0, [Math.cos(i * 1.9) * .18, .62 - Math.hypot(Math.cos(i * 1.9), Math.sin(i * 1.9)) * 0 + (i % 2) * .02, Math.sin(i * 1.9) * .18], [1, .5, 1]);
+      break;
+    case 'donut': {
+      add(new THREE.TorusGeometry(.26, .13, 12, 22), 0xd8a05a, [0, .2, 0], [1, 1, .8], { roughness: .7 }, [Math.PI / 2, 0, 0]);
+      add(new THREE.TorusGeometry(.26, .135, 12, 22), 0xff7ab8, [0, .27, 0], [1, 1, .45], { roughness: .3 }, [Math.PI / 2, 0, 0]);
+      const cols = [0xffffff, 0xffe14a, 0x4ac8ff, 0x7aff7a, 0xff4a4a];
+      for (let i = 0; i < 12; i++) { const an = i * 2.4, r = .26 + Math.cos(i * 1.3) * .07; add(Box(.07, .02, .02), cols[i % 5], [Math.cos(an) * r, .34, Math.sin(an) * r], [1, 1, 1], {}, [0, an, 0]); }
+      break;
+    }
+    case 'flask':
+      add(Sph(.27, 16, 12), 0xddeeff, [0, .3, 0], [1, 1, 1], { roughness: .05, transparent: true, opacity: .4 });
+      liquid = add(Sph(.22, 14, 10), 0x66ccff, [0, .27, 0], [1, .9, 1], { roughness: .1, emissive: 0x2288cc, emissiveIntensity: .6 });
+      add(Cyl(.07, .1, .22, 10), 0xddeeff, [0, .56, 0], [1, 1, 1], { roughness: .05, transparent: true, opacity: .45 });
+      add(Cyl(.08, .08, .08, 10), 0x8a5a2c, [0, .72, 0]);
+      add(Sph(.03, 5, 4), 0xffffff, [.1, .42, .18], [1, 1, 1], { emissive: 0xffffff });
+      break;
+    case 'sword':
+      add(Box(.1, .66, .025), 0xdfe4f0, [0, .66, 0], [1, 1, 1], { metalness: .9, roughness: .15, emissive: 0x3a4a6a, emissiveIntensity: .5 });
+      add(Cone(.05, .12, 4), 0xdfe4f0, [0, 1.05, 0], [1, 1, .25], { metalness: .9, roughness: .15 });
+      add(Box(.34, .06, .08), 0xd8a82a, [0, .32, 0], [1, 1, 1], { metalness: .7 });
+      add(Cyl(.035, .035, .22, 8), 0x6a3a1a, [0, .18, 0]); add(Sph(.055, 8, 6), 0xd8a82a, [0, .05, 0]);
+      break;
+    case 'devileye':
+      add(Sph(.3, 20, 16), 0xc41818, [0, .38, 0], [1, 1, 1], { roughness: .25, emissive: 0x601000, emissiveIntensity: .8 });
+      add(Sph(.18, 14, 10), 0xffb020, [0, .38, .2], [1, 1, .4], { emissive: 0xff8000, emissiveIntensity: .9 });
+      add(Sph(.1, 10, 8), 0x050505, [0, .38, .27], [.35, 1.1, .4]);
+      for (const sx of [-1, 1]) add(Cone(.07, .22, 5), 0x6a0808, [sx * .16, .72, 0], [1, 1, 1], { emissive: 0x300000 }, [0, 0, sx * -.35]);
+      add(Cone(.1, .3, 6), 0xff7a1a, [0, .78, 0], [1, 1, 1], { emissive: 0xff5000, emissiveIntensity: 1.2, transparent: true, opacity: .85 });
+      break;
+    case 'firestone':
+      add(new THREE.DodecahedronGeometry(.3), 0x3a1a14, [0, .3, 0], [1, .85, 1], { roughness: .9 }, [.3, .5, 0]);
+      for (let i = 0; i < 6; i++) { const an = i * 1.05; add(Box(.04, .22, .03), 0xff6a10, [Math.cos(an) * .26, .3 + (i % 2) * .08, Math.sin(an) * .26], [1, 1, 1], { emissive: 0xff5a00, emissiveIntensity: 1.5 }, [0, -an, .3]); }
+      add(Cone(.13, .34, 6), 0xff8a20, [0, .72, 0], [1, 1, 1], { emissive: 0xff6000, emissiveIntensity: 1.3, transparent: true, opacity: .85 });
+      break;
+    case 'crab':
+      add(Sph(.3, 16, 10), 0xe8281e, [0, .2, 0], [1.3, .55, 1], { roughness: .4, emissive: 0x400000 });
+      for (const sx of [-1, 1]) {
+        add(Sph(.14, 10, 8), 0xe8281e, [sx * .44, .26, .26], [1, .8, 1.1]); add(Cone(.07, .18, 5), 0xe8281e, [sx * .5, .28, .44], [1, 1, 1], {}, [Math.PI / 2, 0, 0]);
+        add(Cyl(.018, .018, .14, 5), 0xe8281e, [sx * .12, .4, .2]); add(Sph(.05, 8, 6), 0xffffff, [sx * .12, .49, .2]); add(Sph(.022, 6, 5), 0x111111, [sx * .12, .5, .24]);
+        for (let k = 0; k < 3; k++) add(Cyl(.016, .012, .26, 5), 0xe8281e, [sx * .34, .08, -.1 + k * .13], [1, 1, 1], {}, [0, 0, sx * 1.1]);
+      }
+      break;
+    case 'bug':
+      add(Sph(.22, 14, 10), 0xd8281e, [0, .16, 0], [1, .7, 1.2], { roughness: .25 });
+      add(Box(.012, .02, .46), 0x111111, [0, .27, 0]);
+      for (const p of [[-.09, .27, .08], [.09, .27, .08], [-.1, .24, -.1], [.1, .24, -.1], [0, .28, .2]]) add(Sph(.04, 6, 5), 0x111111, p, [1, .5, 1]);
+      add(Sph(.1, 10, 8), 0x111111, [0, .15, .26]);
+      for (const sx of [-1, 1]) for (let k = 0; k < 3; k++) add(Cyl(.008, .008, .16, 4), 0x111111, [sx * .2, .05, -.08 + k * .1], [1, 1, 1], {}, [0, 0, sx * 1.2]);
+      break;
+    // ── potion foods ──
+    case 'petrol':
+      add(Box(.46, .5, .22), 0xd8281e, [0, .3, 0], [1, 1, 1], { roughness: .4 });
+      add(Cyl(.05, .05, .14, 8), 0xdddddd, [.12, .62, 0]); add(Box(.2, .05, .06), 0x8a1a12, [-.1, .6, 0]);
+      add(Box(.3, .14, .02), 0xffd23a, [0, .3, .115]);
+      break;
+    case 'clock': {
+      add(new THREE.CylinderGeometry(.3, .3, .14, 22), 0xe8e8f0, [0, .4, 0], [1, 1, 1], { roughness: .3 }, [Math.PI / 2, 0, 0]);
+      add(new THREE.CylinderGeometry(.24, .24, .02, 22), 0xfff8e8, [0, .4, .075], [1, 1, 1], {}, [Math.PI / 2, 0, 0]);
+      add(Box(.025, .2, .02), 0x111111, [0, .48, .09]); add(Box(.16, .025, .02), 0x111111, [.06, .4, .09]);
+      for (const sx of [-1, 1]) { add(Sph(.1, 8, 6), 0xd8282e, [sx * .2, .7, 0], [1, .8, 1]); add(Cyl(.02, .03, .12, 5), 0x888888, [sx * .2, .1, 0], [1, 1, 1], {}, [0, 0, sx * .35]); }
+      break;
+    }
+    case 'alcohol':
+      add(Cyl(.14, .14, .4, 14), 0x3a7a2a, [0, .25, 0], [1, 1, 1], { roughness: .15, transparent: true, opacity: .85 });
+      add(Cyl(.055, .1, .24, 10), 0x3a7a2a, [0, .57, 0], [1, 1, 1], { roughness: .15, transparent: true, opacity: .85 });
+      add(Cyl(.065, .065, .05, 10), 0xf2c14a, [0, .72, 0]); add(Cyl(.145, .145, .16, 14), 0xfff4d8, [0, .26, 0], [1.01, 1, 1.01]);
+      break;
+    case 'mushroom':
+      add(Cyl(.1, .14, .3, 10), 0xf4ecd8, [0, .15, 0]);
+      add(new THREE.SphereGeometry(.38, 18, 10, 0, Math.PI * 2, 0, Math.PI / 2), 0xe8283a, [0, .28, 0], [1, .9, 1], { roughness: .4 });
+      for (const p of [[.15, .6, .12], [-.18, .55, .1], [0, .66, -.15], [.02, .66, .12]]) add(Sph(.06, 8, 6), 0xffffff, p, [1, .5, 1]);
+      break;
+    case 'magnet':
+      add(new THREE.TorusGeometry(.22, .075, 8, 14, Math.PI), 0xd8281e, [0, .45, 0], [1, 1, 1], { metalness: .5 }, [0, 0, 0]);
+      for (const sx of [-1, 1]) { add(Box(.15, .22, .15), 0xd8281e, [sx * .22, .34, 0], [1, 1, 1], { metalness: .5 }); add(Box(.15, .09, .15), 0xdadce8, [sx * .22, .2, 0], [1, 1, 1], { metalness: .8 }); }
+      break;
+    case 'ghostjar':
+      add(Cyl(.26, .26, .52, 16), 0xbfe4ff, [0, .3, 0], [1, 1, 1], { roughness: .1, transparent: true, opacity: .32 });
+      add(Cyl(.2, .2, .06, 16), 0x8a5a2c, [0, .6, 0]);
+      add(Sph(.14, 10, 8), 0xffffff, [0, .32, 0], [1, 1.25, 1], { emissive: 0x8899aa, emissiveIntensity: .6 });
+      add(Sph(.026, 5, 4), 0x111111, [-.05, .36, .12]); add(Sph(.026, 5, 4), 0x111111, [.05, .36, .12]);
+      break;
+    case 'skull':
+      add(Sph(.28, 16, 12), 0x6aff3a, [0, .3, 0], [1, 1, 1], { roughness: .15, transparent: true, opacity: .75, emissive: 0x1a5a08 });
+      add(Cyl(.07, .09, .2, 8), 0x6aff3a, [0, .6, 0], [1, 1, 1], { roughness: .15, transparent: true, opacity: .75 }); add(Cyl(.075, .075, .06, 8), 0x8a5a2c, [0, .72, 0]);
+      add(Sph(.11, 10, 8), 0xf4f4ee, [0, .3, .2], [1, 1.05, .6]);
+      add(Sph(.027, 5, 4), 0x111111, [-.04, .32, .25]); add(Sph(.027, 5, 4), 0x111111, [.04, .32, .25]);
+      break;
+    case 'coin':
+      add(new THREE.CylinderGeometry(.32, .32, .07, 24), 0x2a2a34, [0, .4, 0], [1, 1, 1], { metalness: .6 }, [Math.PI / 2, 0, 0]);
+      add(new THREE.TorusGeometry(.32, .035, 6, 24), 0xd8a82a, [0, .4, 0], [1, 1, 1], { metalness: .8 });
+      add(Box(.3, .07, .02), 0xff3a4a, [0, .4, .045], [1, 1, 1], { emissive: 0x800010 });
+      break;
+    case 'firstaid':
+      add(Box(.5, .38, .22), 0xffffff, [0, .26, 0]);
+      add(Box(.28, .08, .02), 0xe8283a, [0, .26, .115]); add(Box(.08, .28, .02), 0xe8283a, [0, .26, .115]);
+      add(Box(.2, .07, .06), 0xdddddd, [0, .5, 0]);
+      break;
+    case 'star': {
+      const sh = new THREE.Shape(); for (let i = 0; i < 10; i++) { const r = i % 2 ? .17 : .4, an = i * Math.PI / 5 + Math.PI / 2; sh[i ? 'lineTo' : 'moveTo'](Math.cos(an) * r, Math.sin(an) * r); } sh.closePath();
+      add(new THREE.ExtrudeGeometry(sh, { depth: .12, bevelEnabled: true, bevelSize: .02, bevelThickness: .02, bevelSegments: 2 }), 0xffd22a, [0, .45, -.06], [1, 1, 1], { metalness: .5, emissive: 0x805a00, emissiveIntensity: .6 });
+      break;
+    }
+    case 'ice':
+      add(Box(.4, .4, .4), 0x9fe8ff, [0, .26, 0], [1, 1, 1], { roughness: .05, transparent: true, opacity: .6, emissive: 0x2a6a8a }, [.2, .5, .1]);
+      add(Box(.22, .22, .22), 0xcff4ff, [.28, .15, .12], [1, 1, 1], { roughness: .05, transparent: true, opacity: .7 }, [.3, .2, 0]);
+      break;
+    case 'bomb':
+      add(Sph(.28, 16, 12), 0x24242c, [0, .3, 0], [1, 1, 1], { roughness: .25, metalness: .3 });
+      add(Cyl(.08, .1, .08, 8), 0x888890, [0, .6, 0]); add(Cyl(.02, .02, .16, 5), 0x6a4a2a, [.05, .72, 0], [1, 1, 1], {}, [0, 0, -.5]);
+      add(Sph(.05, 6, 5), 0xffa020, [.12, .8, 0], [1, 1, 1], { emissive: 0xff6000, emissiveIntensity: 1.2 });
+      break;
+    case 'lifebuoy': {
+      add(new THREE.TorusGeometry(.27, .1, 10, 22), 0xe8283a, [0, .42, 0]);
+      for (let i = 0; i < 4; i++) { const an = i * Math.PI / 2 + Math.PI / 4; add(Box(.1, .22, .21), 0xffffff, [Math.cos(an) * .27, .42 + Math.sin(an) * .27, 0], [1, 1, 1], {}, [0, 0, an - Math.PI / 2]); }
+      break;
+    }
+    case 'chili':
+      add(Cone(.12, .55, 8), 0xe02010, [0, .36, 0], [1, 1, 1], { roughness: .3, emissive: 0x400000 }, [0, 0, 2.5]);
+      add(Cone(.09, .3, 8), 0xe02010, [-.22, .22, 0], [1, 1, 1], { roughness: .3 }, [0, 0, 2.0]);
+      add(Cyl(.03, .04, .14, 6), 0x3ec64a, [.2, .5, 0], [1, 1, 1], {}, [0, 0, -.9]);
+      break;
+    default:   // apple
+      add(Sph(.34, 24, 18), 0xff2d3a, [0, .42, 0], [1, .92, 1], { roughness: .25, emissive: 0x400000 });
+      add(Cyl(.03, .03, .2, 6), 0x5a3a1a, [0, .8, 0]); leaf(.11, .82, 0);
+  }
+  // countdown ring: shrinks as the food's time runs out
+  const ring = new THREE.Mesh(new THREE.RingGeometry(.42, .52, 32), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: .55, side: THREE.DoubleSide, toneMapped: false, depthWrite: false }));
+  ring.rotation.x = -Math.PI / 2; ring.position.y = .03;
+  g.add(ring);
+  g.userData = { inner, ring, liquid };
+  return g;
+}
+
+/** Special food (cake, samosa, pizza, burger): a golden aura, orbiting sparkles and a shrinking gold ring. */
+export function makeSpecialFood(kind, color = 0xffd84a) {
+  const g = makeFood(kind), ud = g.userData;
+  const aura = new THREE.Mesh(sharedGeo('aura', () => Sph(.72, 20, 14)),
+    new THREE.MeshBasicMaterial({ color, transparent: true, opacity: .3, side: THREE.BackSide, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
+  aura.position.y = .5;
+  const stars = new THREE.Group();
+  for (let i = 0; i < 4; i++) {
+    const st = new THREE.Mesh(sharedGeo('spark', () => new THREE.OctahedronGeometry(.07)), new THREE.MeshBasicMaterial({ color: 0xfff2a0, toneMapped: false }));
+    const an = i * Math.PI / 2; st.position.set(Math.cos(an) * .62, .5 + (i % 2) * .25, Math.sin(an) * .62);
+    stars.add(st);
+  }
+  ud.ring.material.color.set(color); ud.ring.material.opacity = .8;
+  g.add(aura, stars);
+  g.userData = { inner: ud.inner, ring: ud.ring, aura, stars };
+  return g;
+}
+
+/** Potion food (mushroom, alcohol, petrol, clock …): the item with a coloured aura and its effect icon above it. */
 export function makeSpecial(key) {
   const f = FRUITS[key];
-  const g = new THREE.Group();
-  const core = new THREE.Mesh(sharedGeo('core', () => Sph(.3, 20, 16)),
-    new THREE.MeshStandardMaterial({ color: f.color, emissive: f.color, emissiveIntensity: .55, roughness: .2 }));
-  core.position.y = .55; core.castShadow = true;
-  const shell = new THREE.Mesh(sharedGeo('shell', () => Ico(.5, 0)),
-    new THREE.MeshBasicMaterial({ color: f.color, wireframe: true, transparent: true, opacity: .6, toneMapped: false }));
-  shell.position.y = .55;
+  const g = makeFood(POTION_MODEL[key] || 'apple'), ud = g.userData;
+  if (ud.liquid) { ud.liquid.material.color.set(f.color); ud.liquid.material.emissive.set(f.color); }
+  const aura = new THREE.Mesh(sharedGeo('aura', () => Sph(.72, 20, 14)),
+    new THREE.MeshBasicMaterial({ color: f.color, transparent: true, opacity: .22, side: THREE.BackSide, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
+  aura.position.y = .5;
   const sprite = new THREE.Sprite(emojiMaterial(f.emoji));
-  sprite.position.y = 1.35; sprite.scale.set(.8, .8, .8);
-  const ring = new THREE.Mesh(sharedGeo('ring', () => new THREE.RingGeometry(.45, .58, 32)),
-    new THREE.MeshBasicMaterial({ color: f.color, transparent: true, opacity: .6, side: THREE.DoubleSide, toneMapped: false }));
-  ring.rotation.x = -Math.PI / 2; ring.position.y = .03;
-  g.add(core, shell, sprite, ring);
-  g.userData = { core, shell, sprite, ring };
+  sprite.position.y = 1.4; sprite.scale.set(.7, .7, .7);
+  ud.ring.material.color.set(f.color); ud.ring.material.opacity = .75;
+  g.add(aura, sprite);
+  g.userData = { core: ud.inner, shell: aura, stars: new THREE.Group(), sprite, ring: ud.ring };
+  return g;
+}
+
+/** The exit door: wooden gate in a stone frame with a glowing doorway and a beam of light. Faces +z. */
+export function makeDoor() {
+  const g = new THREE.Group();
+  const stone = fmat(0xa8a49a, { roughness: .85 }), wood = fmat(0x8a5a2c, { roughness: .7 });
+  const box = (w, h, d, m, x, y, z) => { const o = new THREE.Mesh(Box(w, h, d), m); o.position.set(x, y, z); o.castShadow = true; g.add(o); return o; };
+  box(.3, 2.3, .4, stone, -.78, 1.15, 0); box(.3, 2.3, .4, stone, .78, 1.15, 0);
+  box(1.86, .3, .44, stone, 0, 2.45, 0); box(2.1, .12, 1, stone, 0, .06, .1);
+  box(.5, .16, .5, wood, -.78, 2.68, 0); box(.5, .16, .5, wood, .78, 2.68, 0);
+  const portal = new THREE.Mesh(new THREE.PlaneGeometry(1.26, 2.2), new THREE.MeshBasicMaterial({ color: 0x9affc8, transparent: true, opacity: .8, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, toneMapped: false }));
+  portal.position.set(0, 1.18, 0);
+  const beam = new THREE.Mesh(new THREE.CylinderGeometry(.55, .55, 16, 20, 1, true), new THREE.MeshBasicMaterial({ color: 0xbfffd8, transparent: true, opacity: .22, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, toneMapped: false }));
+  beam.position.set(0, 8, 0);
+  const lamp = (x) => { const o = new THREE.Mesh(Sph(.12, 10, 8), new THREE.MeshBasicMaterial({ color: 0xfff0a0, toneMapped: false })); o.position.set(x, 2.9, 0); g.add(o); };
+  lamp(-.78); lamp(.78);
+  g.add(portal, beam);
+  g.userData = { portal, beam };
   return g;
 }
 
@@ -619,6 +940,87 @@ export function makeSlime(color) {
   return g;
 }
 
+// swirling stars shown above the snake's head after it bumps into something
+export function makeDizzy() {
+  const m = new THREE.SpriteMaterial({ map: (() => { const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d');
+    g.textAlign = 'center'; g.textBaseline = 'middle'; g.font = '92px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif'; g.fillText('💫', 64, 70);
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t; })(), transparent: true, depthWrite: false });
+  m.userData.shared = false;
+  const s = new THREE.Sprite(m);
+  s.scale.set(.9, .9, .9); s.visible = false; s.renderOrder = 5;
+  return s;
+}
+
+/** A burrow hole in the ground with a dirt rim, a glowing edge and a beam of light. */
+export function makeHole() {
+  const g = new THREE.Group();
+  const dirt = fmat(0x6a4a2a, { roughness: 1 });
+  const hole = new THREE.Mesh(new THREE.CircleGeometry(.66, 28), new THREE.MeshBasicMaterial({ color: 0x050403 }));
+  hole.rotation.x = -Math.PI / 2; hole.position.y = .05; g.add(hole);
+  const rim = new THREE.Mesh(new THREE.TorusGeometry(.74, .16, 8, 28), dirt);
+  rim.rotation.x = Math.PI / 2; rim.position.y = .06; rim.scale.set(1, 1, .55); rim.castShadow = true; g.add(rim);
+  for (let i = 0; i < 8; i++) { const an = i / 8 * Math.PI * 2, r = new THREE.Mesh(new THREE.DodecahedronGeometry(.1 + (i % 3) * .03), fmat(0x8a8a84, { roughness: .9 })); r.position.set(Math.cos(an) * .92, .1, Math.sin(an) * .92); r.castShadow = true; g.add(r); }
+  const portal = new THREE.Mesh(new THREE.RingGeometry(.5, .78, 30), new THREE.MeshBasicMaterial({ color: 0x9affc8, transparent: true, opacity: .8, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, toneMapped: false }));
+  portal.rotation.x = -Math.PI / 2; portal.position.y = .1; g.add(portal);
+  const beam = new THREE.Mesh(new THREE.CylinderGeometry(.5, .5, 16, 20, 1, true), new THREE.MeshBasicMaterial({ color: 0xbfffd8, transparent: true, opacity: .22, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, toneMapped: false }));
+  beam.position.y = 8; g.add(beam);
+  g.userData = { portal, beam };
+  return g;
+}
+
+/** Crocodile: long green body, toothy snout, yellow eyes. Faces +z. */
+export function makeCroc() {
+  const g = new THREE.Group(), pivot = new THREE.Group(); g.add(pivot);
+  const gm = fmat(0x4a7a3a, { roughness: .55, emissive: 0x4a7a3a, emissiveIntensity: .1 }), belly = fmat(0xc8d89a);
+  const mk = (geo, mat, pos, scl = [1, 1, 1], rot = null) => { const m = new THREE.Mesh(geo, mat); m.position.set(...pos); m.scale.set(...scl); if (rot) m.rotation.set(...rot); m.castShadow = true; pivot.add(m); return m; };
+  const body = mk(Sph(.4, 16, 12), gm, [0, .26, -.1], [.95, .55, 1.9]);
+  mk(Sph(.3, 12, 8), belly, [0, .14, -.1], [.8, .35, 1.5]);
+  mk(Sph(.24, 12, 8), gm, [0, .26, .62], [1, .55, 1.4]);                 // head
+  mk(Box(.3, .1, .5), gm, [0, .22, .98]);                                  // snout
+  for (const sx of [-1, 1]) {
+    for (let i = 0; i < 4; i++) mk(Cone(.025, .07, 4), fmat(0xffffff), [sx * .14, .17, .78 + i * .1], [1, 1, 1], [Math.PI, 0, 0]);
+    mk(Sph(.07, 8, 6), fmat(0xf2d230, { emissive: 0x4a3a00 }), [sx * .13, .44, .6]); mk(Sph(.03, 6, 5), fmat(0x111111), [sx * .13, .46, .65], [.5, 1.3, .5]);
+    mk(Cyl(.07, .06, .2, 6), gm, [sx * .34, .08, .2], [1, 1, 1], [0, 0, sx * .5]); mk(Cyl(.07, .06, .2, 6), gm, [sx * .34, .08, -.5], [1, 1, 1], [0, 0, sx * .5]);
+  }
+  mk(Cone(.22, 1.0, 6), gm, [0, .2, -1.0], [1, .5, 1], [-Math.PI / 2, 0, 0]);   // tail
+  for (let i = 0; i < 6; i++) mk(Cone(.05, .1, 4), fmat(0x2e5a24), [0, .5 - i * .005, .3 - i * .18]);
+  g.scale.setScalar(.95);
+  g.userData = { pivot, body };
+  return g;
+}
+
+/** Red crab: flat shell, two big claws, eye stalks, legs. Walks sideways (the game rotates it). */
+export function makeCrab() {
+  const g = new THREE.Group(), pivot = new THREE.Group(); g.add(pivot);
+  const red = fmat(0xe8281e, { roughness: .4, emissive: 0xe8281e, emissiveIntensity: .12 });
+  const mk = (geo, mat, pos, scl = [1, 1, 1], rot = null) => { const m = new THREE.Mesh(geo, mat); m.position.set(...pos); m.scale.set(...scl); if (rot) m.rotation.set(...rot); m.castShadow = true; pivot.add(m); return m; };
+  const body = mk(Sph(.34, 16, 10), red, [0, .22, 0], [1.3, .55, 1]);
+  for (const sx of [-1, 1]) {
+    mk(Sph(.16, 10, 8), red, [sx * .5, .3, .3], [1, .8, 1.1]); mk(Cone(.08, .2, 5), red, [sx * .56, .32, .5], [1, 1, 1], [Math.PI / 2, 0, 0]);
+    mk(Cyl(.02, .02, .16, 5), red, [sx * .13, .46, .22]); mk(Sph(.055, 8, 6), fmat(0xffffff), [sx * .13, .56, .22]); mk(Sph(.025, 6, 5), fmat(0x111111), [sx * .13, .57, .26]);
+    for (let k = 0; k < 3; k++) mk(Cyl(.018, .014, .3, 5), red, [sx * .38, .1, -.1 + k * .15], [1, 1, 1], [0, 0, sx * 1.1]);
+  }
+  g.userData = { pivot, body };
+  return g;
+}
+
+/** A realistic forked snake tongue for the first-person view: thin tapered stem + two prongs. Extends along -z. */
+export function makeTongue() {
+  const group = new THREE.Group();
+  const mat = new THREE.MeshStandardMaterial({ color: 0xd8203f, roughness: .3, emissive: 0x500014, emissiveIntensity: .6 });
+  const sg = new THREE.CylinderGeometry(.012, .024, 1, 10, 1); sg.rotateX(-Math.PI / 2); sg.translate(0, 0, -.5);
+  const stem = new THREE.Mesh(sg, mat);
+  const tip = new THREE.Group();
+  const pg = new THREE.CylinderGeometry(.004, .013, .24, 8, 1); pg.rotateX(-Math.PI / 2); pg.translate(0, 0, -.12);
+  const prongL = new THREE.Mesh(pg, mat), prongR = new THREE.Mesh(pg, mat);
+  tip.add(prongL, prongR);
+  const root = new THREE.Mesh(new THREE.SphereGeometry(.03, 10, 8), mat);
+  group.add(stem, tip, root);
+  group.position.set(0, -.3, -.34); group.rotation.x = -.16;
+  group.visible = false;
+  return { group, stem, tip, prongL, prongR };
+}
+
 export function makeMagnetRing() {
   const m = new THREE.Mesh(new THREE.TorusGeometry(.8, .05, 8, 48),
     new THREE.MeshBasicMaterial({ color: 0xff3030, transparent: true, opacity: .75, toneMapped: false }));
@@ -631,13 +1033,11 @@ export function makeShock(color) {
     new THREE.MeshBasicMaterial({ color, transparent: true, opacity: .9, side: THREE.DoubleSide, toneMapped: false, depthWrite: false }));
 }
 
+// each level gets its own snake colours (index = level)
 export const SKINS = [
-  { a: 0x43c463, b: 0xa6e35a },
-  { a: 0x2f7bff, b: 0x7fd0ff },
-  { a: 0xff7a1a, b: 0xffd23f },
-  { a: 0xd040fb, b: 0xff9ae6 },
-  { a: 0xff3b5c, b: 0xffc1a8 },
-  { a: 0x14c9b4, b: 0xfff275 },
-  { a: 0x222233, b: 0xffd400 },
-  { rainbow: true },
+  { a: 0x43c463, b: 0xa6e35a }, { a: 0x2f7bff, b: 0x7fd0ff }, { a: 0xff7a1a, b: 0xffd23f }, { a: 0xd040fb, b: 0xff9ae6 },
+  { a: 0xff3b5c, b: 0xffc1a8 }, { a: 0x14c9b4, b: 0xfff275 }, { a: 0x3a3a52, b: 0xffd400 }, { rainbow: true },
+  { a: 0xff7eb6, b: 0xffd1e8 }, { a: 0x8ad33a, b: 0xf4ff8a }, { a: 0x9a6a3a, b: 0xf0d09a }, { a: 0x20b8e8, b: 0xc8f4ff },
+  { a: 0xf0c020, b: 0x6a3a10 }, { a: 0xe8e8f4, b: 0x6aa8ff }, { a: 0xff6a4a, b: 0xffd0b0 }, { a: 0x6a8a3a, b: 0xd8e08a },
+  { a: 0xb020a8, b: 0x6af0d0 }, { a: 0x5af0a0, b: 0xe8fff0 }, { a: 0x1a2a6a, b: 0x6ab8ff }, { a: 0xd01830, b: 0xffe27a },
 ];

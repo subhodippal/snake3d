@@ -3,15 +3,17 @@
 A 3D snake game that runs in the browser. It is built with [Three.js](https://threejs.org) and plays on both **desktop and mobile**. It is a fully static site, so you can host it on **GitHub Pages** with no build step. It is also an **installable PWA** that works offline.
 
 ## Features
+- **4 camera views** (button next to Pause, or press V): classic 3D, tilted 3D, snake-eye first person (◀ ▶ turn left/right, only your tongue is visible) and a top-down 2D map.
 - **3 game modes**
-  - **Adventure**: 10 levels, each on its own map. To clear a level you must eat a set number of 🍎 apples **and** ★ special fruits. You earn up to 3 stars per level, based on the health you have left.
-  - **Endless**: no goal; the snake keeps speeding up. Pick any of the 10 maps.
+  - **Adventure**: 20 levels, each on its own big map (different places, times of day and weather: sunny mornings, golden sunsets, heavy rain, thunderstorms, starry nights). Bumping into trees, walls, rocks or the river no longer kills you: the snake just stops, gets dizzy, and waits for a new direction. Watch out for slimes, poison and traffic on busy roads. To clear a level you must eat a set number of 🍎 apples **and** ★ special fruits. You earn up to 3 stars per level, based on the health you have left.
+  - **Endless**: no goal; the snake keeps speeding up. Pick any of the 20 maps.
   - **Time Attack**: 90 seconds to score as much as you can. Every apple adds 1.5 seconds.
 - **Open 3D worlds instead of a board**: every level is a large full-screen landscape with rolling hills, fenced in by a **bamboo fence**. The camera follows the snake, a red arrow and a minimap point to the next apple.
 - **Rivers and bridges**: snakes can't swim here! Rivers wind through each map, and you must cross them on wooden (or stone road) bridges. Hitting the water or the fence costs health.
 - **10 environments**: Green Meadow, Wild Jungle, Sandy Shores, Rocky Valley, Rolling Hills, Snowy Peaks (with snowfall), Country Road (sunset, street lamps, cars), Fun Playground (swings, slides, seesaws, sandpits), Torch Cave and Temple Night. The two dark levels are lit by flickering fire torches (with real lights and embers), and the temple has fireflies.
 - **Harmless wildlife**: monkeys, parrots, birds, eagles, seagulls, deer, rabbits, sheep, goats, turtles on the sand, crabs, frogs, lizards, penguins, ducks on the river, jumping fish, bats, dogs, cats, squirrels, pigeons and butterflies. They wander around and scurry away from the snake.
-- **9 special fruits**
+- **Food system**: normal food (apple, litchi, pumpkin, orange), rare special food (pizza, cake, burger, donut: big points, maximum growth), spells (speed, slow, invisible, reverse, live, sword), gems (mushroom, devil eye, fire stone, magnet) and small animals (mouse, frog, bug, crab) that all run around from the start of the level. Every level has its own goals; finishing them opens a **hidden door** (or a burrow in the ground) that you slither through. Biting your own body hurts and cuts your tail.
+- **15 special-food effects**
 
   | Fruit | Effect |
   |---|---|

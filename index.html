@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#0f1630" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="description" content="Slither 3D – a 3D snake adventure across 10 open worlds: meadow, jungle, shores, valley, hills, snow, roads, playground, torch-lit cave and temple. Plays in the browser on mobile and desktop." />
+  <meta name="description" content="Slither 3D – a 3D snake adventure across 20 big open worlds: sunny meadows, jungle rivers, sunset hills, busy highways, rainy forests, thunderstorms, night cities, torch-lit caves and more. Plays in the browser on mobile and desktop." />
   <title>Slither 3D – Snake Adventure</title>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Slither 3D" />
@@ -36,9 +36,26 @@
   <!-- Main menu -->
   <div id="menu" class="screen">
     <div class="panel menu-panel">
+      <svg class="menu-snake" viewBox="0 0 240 78" aria-hidden="true">
+        <defs>
+          <linearGradient id="sn-g" x1="0" x2="1"><stop offset="0" stop-color="#2f9a4a"/><stop offset=".6" stop-color="#4fd36a"/><stop offset="1" stop-color="#9be35a"/></linearGradient>
+        </defs>
+        <path d="M8 56 C38 8 74 8 104 40 S168 70 200 34" fill="none" stroke="#0b2a14" stroke-opacity=".35" stroke-width="20" stroke-linecap="round" transform="translate(0 4)"/>
+        <path d="M8 56 C38 8 74 8 104 40 S168 70 200 34" fill="none" stroke="url(#sn-g)" stroke-width="16" stroke-linecap="round"/>
+        <path d="M8 56 C38 8 74 8 104 40 S168 70 200 34" fill="none" stroke="#1d6a32" stroke-width="7" stroke-linecap="round" stroke-dasharray="5 15" stroke-opacity=".75"/>
+        <path d="M8 56 C38 8 74 8 104 40 S168 70 200 34" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-opacity=".25" transform="translate(0 -4)"/>
+        <g transform="translate(204 32) rotate(-22)">
+          <ellipse cx="6" cy="0" rx="17" ry="11" fill="#43c463"/>
+          <ellipse cx="14" cy="1" rx="10" ry="7" fill="#58d676"/>
+          <ellipse cx="2" cy="-1" rx="7" ry="3.2" fill="#1d6a32" opacity=".7"/>
+          <circle cx="8" cy="-6" r="4" fill="#f2d230"/><ellipse cx="8.8" cy="-6" rx="1.1" ry="3.1" fill="#111"/>
+          <circle cx="8" cy="6" r="4" fill="#f2d230"/><ellipse cx="8.8" cy="6" rx="1.1" ry="3.1" fill="#111"/>
+          <path d="M23 0 L36 0 M36 0 L42 -5 M36 0 L42 5" stroke="#ff2a55" stroke-width="2" stroke-linecap="round" fill="none"/>
+        </g>
+      </svg>
       <h1 class="logo">SLITHER<span>3D</span></h1>
       <p class="tag">Slither · Feast · Survive</p>
-      <button class="btn big primary" data-act="adventure">▶ Adventure <small>10 levels</small></button>
+      <button class="btn big primary" data-act="adventure">▶ Adventure <small>20 levels</small></button>
       <button class="btn big" data-act="endless">∞ Endless <small>how long can you grow?</small></button>
       <button class="btn big" data-act="time">⏱ Time Attack <small>90 seconds</small></button>
       <div class="row">
@@ -48,6 +65,14 @@
       <div class="row">
         <button class="btn ghost small" data-act="fullscreen" id="btn-fullscreen">⛶ Fullscreen</button>
         <button class="btn small install hidden" data-act="install" id="btn-install">📲 Install app</button>
+      </div>
+      <div id="orient-row" class="orient-row">
+        <span>📱 Play in</span>
+        <div class="seg" id="menu-orient">
+          <button data-val="portrait">Portrait</button>
+          <button data-val="auto">Auto</button>
+          <button data-val="landscape">Landscape</button>
+        </div>
       </div>
       <p id="install-hint" class="install-hint hidden"></p>
     </div>
@@ -82,13 +107,17 @@
         </div>
         <div class="card">
           <h3>🎯 Goal</h3>
-          <p>Eat 🍎 apples to grow. Each level asks for a number of apples <b>and</b> ★ special fruits.</p>
-          <p>Hitting the 🎋 bamboo fence, trees, rocks, yourself or 👾 slimes costs ❤️ health. At zero health it's game over.</p>
+          <p>Eat fruit to grow. Each level has its own goals: a number of 🍎 <b>normal food</b>, ★ <b>special food</b> (pizza, cake, burger, donut), and/or 🐭 <b>small animals</b> to catch (mouse, frog, bug, crab: they all run at the start of the level and never come back).</p>
+          <p>Food only lasts a little while (watch its ring shrink), then it vanishes and something new appears somewhere else.</p>
+          <p>Finish every goal and a <b>hidden 🚪 door</b> opens in the fence. Slither through it to reach the next level!</p>
+          <p>Bumping into the 🎋 fence, trees or rocks just stops you, but <b>biting your own body</b> hurts and cuts off your tail. 👾 Slimes, 🐊 crocodiles, 🦀 crabs and 🚗 traffic cost ❤️ health. At zero health it's game over.</p>
           <p>💦 Snakes can't swim here! Cross rivers on the 🌉 bridges. The red arrow and the map point you to the next apple.</p>
           <p>Sprinting while you eat gives <b>double points</b>!</p>
         </div>
       </div>
-      <h3>Special fruits</h3>
+      <h3>Special foods (rare, big points, maximum growth)</h3>
+      <div id="special-list" class="fruit-list"></div>
+      <h3>Spells &amp; gems (good and bad!)</h3>
       <div id="fruit-list" class="fruit-list"></div>
       <button class="btn" data-act="back">← Back</button>
     </div>
@@ -103,6 +132,14 @@
         <div class="seg" id="set-control">
           <button data-val="swipe">Swipe</button>
           <button data-val="buttons">Buttons</button>
+        </div>
+      </div>
+      <div class="setting orient-setting">
+        <span>Screen (phones)</span>
+        <div class="seg" id="set-orient">
+          <button data-val="portrait">Portrait</button>
+          <button data-val="auto">Auto</button>
+          <button data-val="landscape">Landscape</button>
         </div>
       </div>
       <div class="setting">
@@ -128,21 +165,28 @@
   <div id="hud" class="hidden">
     <div class="hud-top">
       <button id="btn-pause" class="icon-btn" aria-label="Pause">⏸</button>
+      <button id="btn-view" class="icon-btn view-btn" aria-label="Change camera view" title="View (V)"><span id="view-ico">🎥</span><small id="view-txt">3D</small></button>
       <div class="hud-block grow">
         <div id="hud-level" class="hud-level"></div>
+        <div id="hud-goal" class="hud-goal"></div>
         <div class="health"><div id="hud-health" class="health-fill"></div><span id="hud-health-text">100</span></div>
+        <div id="hud-prog" class="prog" title="Apples eaten"><i id="hud-prog-fill"></i><b id="hud-prog-head">🐍</b></div>
       </div>
       <div class="hud-block right">
         <div id="hud-score" class="hud-score">0</div>
         <div class="goals">
           <span id="hud-food" class="pill">🍎 0</span>
           <span id="hud-special" class="pill">★ 0</span>
+          <span id="hud-mover" class="pill hidden">🐭 0</span>
+          <span id="hud-combo" class="pill combo hidden">🔥 ×1</span>
+          <span id="hud-door" class="pill door hidden">🚪 Door open!</span>
           <span id="hud-timer" class="pill hidden">⏱ 90</span>
         </div>
       </div>
     </div>
     <div id="hud-effects" class="effects"></div>
     <canvas id="minimap" width="150" height="150" aria-label="Map"></canvas>
+    <button id="btn-rescue" class="rescue-btn hidden" aria-label="Rescue: go back to your last apple">🛟 <span>Stuck? Tap to go back<small>to your last apple (R)</small></span></button>
     <div id="sprint-badge" class="sprint-badge">💨 SPRINT</div>
   </div>
 
@@ -161,6 +205,9 @@
   <div id="countdown" class="countdown"></div>
   <div id="toast" class="toast"></div>
   <div id="popups"></div>
+  <div id="rotate" class="hidden"><div><span class="rot-ico">📱</span><b id="rotate-text">Rotate your phone</b><small>or pick “Auto” in Settings</small></div></div>
+  <div id="atmos" data-mood="noon"></div>
+  <div id="fps-eye" aria-hidden="true"><i class="lid top"></i><i class="lid bot"></i></div>
   <div id="flash"></div>
 
   <!-- Pause -->

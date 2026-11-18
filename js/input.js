@@ -11,6 +11,8 @@ const KEYMAP = {
   ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right',
 };
 
+const TURN_L = { right: 'up', up: 'left', left: 'down', down: 'right' };
+const TURN_R = { right: 'down', down: 'left', left: 'up', up: 'right' };
 const HOLD_KEY_MS = 170;   // hold a direction key this long -> sprint
 const HOLD_TOUCH_MS = 240; // hold finger on screen this long -> sprint
 const SWIPE_PX = 22;
@@ -19,6 +21,8 @@ export class Input {
   constructor(surface) {
     this.queue = [];
     this.reverse = false;
+    this.isRelative = () => false;  // snake-eye (first person) view: ◀ ▶ turn left / right
+    this.heading = () => 'right';
     this.enabled = false;
     this.heldKeys = new Map();
     this.boostKey = false;
@@ -91,7 +95,11 @@ export class Input {
 
   push(name) {
     if (!this.enabled) return;
-    const d = this.map(name);
+    let d = this.map(name);
+    if (this.isRelative()) {
+      const cur = this.queue.length ? this.queue[this.queue.length - 1] : this.heading();
+      if (d === 'left') d = TURN_L[cur]; else if (d === 'right') d = TURN_R[cur]; else return;
+    }
     const last = this.queue[this.queue.length - 1];
     if (last === d || this.queue.length >= 3) return;
     this.queue.push(d);
@@ -109,6 +117,10 @@ export class Input {
   isSprinting(current, now) {
     if (!this.enabled) return false;
     if (this.boostKey || this.boostButton) return true;
+    if (this.isRelative()) {
+      for (const [name, t] of this.heldKeys) if (this.map(name) === 'up' && now - t > HOLD_KEY_MS) return true;
+      if (this.heldButton && this.map(this.heldButton.name) === 'up' && now - this.heldButton.t0 > HOLD_KEY_MS) return true;
+    }
     for (const [name, t] of this.heldKeys) if (this.map(name) === current && now - t > HOLD_KEY_MS) return true;
     const b = this.heldButton;
     if (b && this.map(b.name) === current && now - b.t0 > HOLD_KEY_MS) return true;

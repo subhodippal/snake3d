@@ -11,7 +11,7 @@ export const walkable = t => t !== OBST && t !== WATER;
 export const FOOTPRINT = {
   tree: [1, 1, 0], bush: [1, 1, 0], rock: [1, 1, 0], log: [2, 1, 0], flowerBush: [1, 1, 0],
   jungleTree: [1, 1, 1], bamboo: [1, 1, 0], palm: [1, 1, 0], cactus: [1, 1, 0], sandcastle: [1, 1, 0],
-  umbrella: [1, 1, 0], boulder: [2, 2, 0], pine: [1, 1, 0], stump: [1, 1, 0], hay: [1, 1, 0],
+  umbrella: [1, 1, 0], autumnTree: [1, 1, 0], autumnBush: [1, 1, 0], bigTree: [2, 2, 0], bigPine: [2, 2, 0], bigAutumnTree: [2, 2, 0], smallTree: [1, 1, 0], boulder: [2, 2, 0], pine: [1, 1, 0], stump: [1, 1, 0], hay: [1, 1, 0],
   snowPine: [1, 1, 0], snowman: [1, 1, 1], iceRock: [1, 1, 0], house: [3, 3, 1], car: [2, 1, 1],
   cone: [1, 1, 0], mailbox: [1, 1, 0], swing: [3, 1, 1], slide: [3, 1, 1], seesaw: [3, 1, 1],
   carousel: [2, 2, 1], bench: [2, 1, 0], ball: [1, 1, 0], stalagmite: [1, 1, 0], crystal: [1, 1, 0],

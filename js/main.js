@@ -4,7 +4,7 @@
 import { Game } from './game.js';
 import { Input } from './input.js';
 import { Sfx } from './audio.js';
-import { LEVELS, THEMES, FRUITS } from './levels.js';
+import { LEVELS, FRUITS, FOODS, themeFor } from './levels.js';
 
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
@@ -13,12 +13,13 @@ const coarse = matchMedia('(pointer: coarse)').matches;
 
 // ── Save data ───────────────────────────────────────────────
 const SAVE_KEY = 'slither3d.save.v1';
-const DEFAULT_SAVE = { unlocked: 1, stars: Array(10).fill(0), levelBest: Array(10).fill(0), best: { endless: 0, time: 0 }, control: 'swipe', sound: true, quality: 'high' };
+const DEFAULT_SAVE = { orient: 'auto', unlocked: 1, stars: Array(LEVELS.length).fill(0), levelBest: Array(LEVELS.length).fill(0), best: { endless: 0, time: 0 }, control: 'swipe', sound: true, quality: 'high' };
 function loadSave() {
   try { return { ...DEFAULT_SAVE, ...JSON.parse(localStorage.getItem(SAVE_KEY) || '{}') }; }
   catch (_) { return { ...DEFAULT_SAVE }; }
 }
 const save = loadSave();
+for (const k of ['stars', 'levelBest']) { save[k] = [...(save[k] || [])]; while (save[k].length < LEVELS.length) save[k].push(0); }
 const persist = () => { try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (_) {} };
 
 // ── Core objects ────────────────────────────────────────────
@@ -52,6 +53,10 @@ const ui = {
     el.textContent = v; el.classList.remove('anim'); void el.offsetWidth; el.classList.add('anim');
     if (v === 'GO!') $('#intro').classList.add('hidden');
   },
+  atmos(mood) {
+    const el = $('#atmos');
+    if (el) el.dataset.mood = mood || 'noon';
+  },
   onEnd(res) { showResult(res); },
 };
 
@@ -64,7 +69,7 @@ try {
 }
 game.setQuality(save.quality);
 window.slither = game; // handy for debugging in the console
-game.load({ mode: 'demo', level: (Math.random() * 10) | 0 });
+game.load({ mode: 'demo', level: (Math.random() * LEVELS.length) | 0 });
 
 // ── Screens ─────────────────────────────────────────────────
 function show(id) {
@@ -77,18 +82,20 @@ function setInGame(on) {
   $('#dpad').classList.toggle('hidden', !pad);
   document.body.classList.toggle('dpad-on', pad);
   input.enabled = on;
+  if (typeof syncEye === 'function') syncEye();
   if (!on) { input.releaseAll(); input.clear(); }
 }
 
 function goMenu() {
   setInGame(false);
   $('#intro').classList.add('hidden');
-  game.load({ mode: 'demo', level: (Math.random() * 10) | 0 });
+  game.load({ mode: 'demo', level: (Math.random() * LEVELS.length) | 0 });
   show('menu');
 }
 
 function startGame(cfg) {
   currentCfg = cfg;
+  if (coarse && save.orient !== 'auto' && typeof applyOrientation === 'function') applyOrientation(true);
   show(null);
   setInGame(true);
   game.load(cfg);
@@ -100,19 +107,21 @@ function showIntro(cfg) {
   const el = $('#intro');
   let html;
   if (cfg.mode === 'adventure') {
-    const L = LEVELS[cfg.level], T = THEMES[L.map];
+    const L = LEVELS[cfg.level], T = themeFor(L);
     const prev = cfg.level > 0 ? LEVELS[cfg.level - 1].fruits : [];
     const fresh = L.fruits.filter(f => !prev.includes(f));
     html = `<h3>Level ${cfg.level + 1} · ${T.emoji} ${T.name}</h3>
-      <p>Eat <b>🍎 ${L.target}</b> apples and <b>★ ${L.special}</b> special fruit${L.special > 1 ? 's' : ''}</p>
+      <p>${goalText(L.goals)}</p>
+      <p class="tip">Then find the hidden 🚪 door to escape!</p>
+      <p class="mood">${T.moodLabel}</p>
       <p class="tip">${themeTip(T)}</p>
       ${L.enemies ? `<p>👾 Watch out for ${L.enemies} slime${L.enemies > 1 ? 's' : ''}!</p>` : ''}
       ${fresh.length ? `<div class="new">New: ${fresh.map(f => `${FRUITS[f].emoji} ${FRUITS[f].name}`).join(' · ')}</div>` : ''}`;
   } else {
-    const T = THEMES[LEVELS[cfg.map].map];
+    const T = themeFor(LEVELS[cfg.map]);
     html = cfg.mode === 'endless'
-      ? `<h3>∞ Endless · ${T.emoji} ${T.name}</h3><p>Grow as long as you can. It gets faster!</p><p class="tip">${themeTip(T)}</p>`
-      : `<h3>⏱ Time Attack · ${T.emoji} ${T.name}</h3><p>Score as much as you can in 90 seconds. Apples add +1.5s.</p><p class="tip">${themeTip(T)}</p>`;
+      ? `<h3>∞ Endless · ${T.emoji} ${T.name}</h3><p class="mood">${T.moodLabel}</p><p>Grow as long as you can. It gets faster!</p><p class="tip">${themeTip(T)}</p>`
+      : `<h3>⏱ Time Attack · ${T.emoji} ${T.name}</h3><p class="mood">${T.moodLabel}</p><p>Score as much as you can in 90 seconds. Apples add +1.5s.</p><p class="tip">${themeTip(T)}</p>`;
   }
   const hint = coarse
     ? (save.control === 'buttons' ? 'D-pad to turn · hold a button or 💨 to sprint' : 'Swipe to turn · tap & hold to sprint')
@@ -121,10 +130,24 @@ function showIntro(cfg) {
   el.classList.remove('hidden');
 }
 
+function goalText(g) {
+  const parts = [];
+  if (g.fruit) parts.push(`Eat <b>🍎 ${g.fruit}</b> normal food`);
+  if (g.special) parts.push(`eat <b>★ ${g.special}</b> special food${g.special > 1 ? 's' : ''} (pizza, cake, burger, donut)`);
+  if (g.mover) parts.push(`catch <b>🐭 ${g.mover}</b> small animal${g.mover > 1 ? 's' : ''}`);
+  const t = parts.join(', ');
+  return t.charAt(0) === 'e' ? t.charAt(0).toUpperCase() + t.slice(1) : t;
+}
+
 function themeTip(T) {
-  if (T.dark) return '🔥 Follow the torchlight · 🌉 cross the river on bridges';
-  if (T.roads) return '🛣️ Roads are safe · 🌉 use the road bridges over the river';
-  return '🌉 Rivers can only be crossed on bridges · 🎋 don’t hit the fence';
+  const tips = [];
+  if (T.rivers && T.rivers.length) tips.push('🌉 Cross rivers on bridges');
+  if (T.traffic) tips.push('🚗 Watch out for traffic on the roads!');
+  else if (T.roads) tips.push('🛣️ Roads are safe');
+  if (T.hills && T.hills.amp >= 2.4) tips.push('⛰️ Hills and slopes ahead');
+  if (T.lightning) tips.push('⚡ Lightning storm');
+  tips.push('🌳 Bumping into things only stops you');
+  return tips.slice(0, 3).join(' · ');
 }
 
 // ── Level select ────────────────────────────────────────────
@@ -137,15 +160,15 @@ function renderLevels(mode) {
   const grid = $('#level-grid');
   grid.innerHTML = '';
   LEVELS.forEach((L, i) => {
-    const T = THEMES[L.map];
+    const T = themeFor(L);
     const locked = mode === 'adventure' && i >= save.unlocked;
     const b = document.createElement('button');
     b.className = 'lvl' + (locked ? ' locked' : '');
     b.style.background = `linear-gradient(rgba(0,0,0,.12), rgba(0,0,0,.42)), linear-gradient(160deg, ${T.card[0]}, ${T.card[1]})`;
     const stars = save.stars[i] || 0;
     b.innerHTML = `<span class="num">${mode === 'adventure' ? 'Level ' + (i + 1) : 'Map ' + (i + 1)}</span>
-      <span class="emo">${T.emoji}</span><span class="nm">${T.name}</span>
-      ${mode === 'adventure' ? `<span class="st">${'★'.repeat(stars)}${'☆'.repeat(3 - stars)}</span><span class="goal">🍎${L.target} ★${L.special}</span>` : ''}`;
+      <span class="emo">${T.emoji}</span><span class="nm">${T.name}</span><span class="mood">${T.moodLabel}</span>
+      ${mode === 'adventure' ? `<span class="st">${'★'.repeat(stars)}${'☆'.repeat(3 - stars)}</span><span class="goal">${L.goals.fruit ? '🍎' + L.goals.fruit + ' ' : ''}${L.goals.special ? '★' + L.goals.special + ' ' : ''}${L.goals.mover ? '🐭' + L.goals.mover : ''}</span>` : ''}`;
     b.addEventListener('click', () => {
       if (locked) { sfx.hurt(); return; }
       sfx.click();
@@ -157,13 +180,42 @@ function renderLevels(mode) {
 }
 
 // ── How to play ─────────────────────────────────────────────
+$('#special-list').innerHTML = Object.values(FOODS.special).map(f =>
+  `<div class="fruit" style="--c:${hex(f.color)}"><span class="e">${f.emoji}</span><div><b>${f.name}</b><span>Special food · ${f.desc}</span></div></div>`
+).join('');
 $('#fruit-list').innerHTML = Object.values(FRUITS).map(f =>
   `<div class="fruit" style="--c:${f.color === 0xffffff ? '#ff6bf0' : hex(f.color)}"><span class="e">${f.emoji}</span><div><b>${f.name}</b><span>${f.desc}</span></div></div>`
 ).join('');
 
+// ── Screen orientation (phones): portrait, landscape or auto ─────────────────
+const isPortrait = () => innerHeight > innerWidth;
+function updateRotateHint() {
+  const want = save.orient, mismatch = coarse && want !== 'auto' && (want === 'portrait') !== isPortrait();
+  $('#rotate').classList.toggle('hidden', !mismatch);
+  if (mismatch) $('#rotate-text').textContent = want === 'landscape' ? 'Rotate your phone sideways' : 'Hold your phone upright';
+  checkFpsAllowed();
+}
+async function applyOrientation(userGesture = false) {
+  const o = screen.orientation;
+  try {
+    if (save.orient === 'auto') o?.unlock?.();
+    else if (o?.lock && userGesture) {
+      if (!document.fullscreenElement) await document.documentElement.requestFullscreen?.().catch(() => {});
+      await o.lock(save.orient).catch(() => {});
+    }
+  } catch (_) { /* not supported: the rotate hint covers it */ }
+  updateRotateHint();
+}
+function setOrient(v) { save.orient = v; persist(); syncSettings(); applyOrientation(true); }
+$$('#menu-orient button').forEach(b => b.addEventListener('click', () => { sfx.click(); setOrient(b.dataset.val); }));
+$$('#set-orient button').forEach(b => b.addEventListener('click', () => { sfx.click(); setOrient(b.dataset.val); }));
+addEventListener('resize', updateRotateHint);
+addEventListener('orientationchange', () => setTimeout(updateRotateHint, 150));
+
 // ── Settings ────────────────────────────────────────────────
 function syncSettings() {
   $$('#set-control button').forEach(b => b.classList.toggle('on', b.dataset.val === save.control));
+  $$('#set-orient button, #menu-orient button').forEach(b => b.classList.toggle('on', b.dataset.val === save.orient));
   $$('#set-sound button').forEach(b => b.classList.toggle('on', (b.dataset.val === 'on') === save.sound));
   $$('#set-quality button').forEach(b => b.classList.toggle('on', b.dataset.val === save.quality));
 }
@@ -183,11 +235,11 @@ function showResult(res) {
   if (res.mode === 'adventure') {
     if (res.kind === 'won') {
       save.stars[res.level] = Math.max(save.stars[res.level] || 0, res.stars);
-      save.unlocked = Math.min(10, Math.max(save.unlocked, res.level + 2));
+      save.unlocked = Math.min(LEVELS.length, Math.max(save.unlocked, res.level + 2));
       isBest = res.score > (save.levelBest[res.level] || 0);
       save.levelBest[res.level] = Math.max(save.levelBest[res.level] || 0, res.score);
-      title = res.level === 9 ? '🏆 You beat every level!' : 'Level Complete!';
-      if (res.level < 9) next.classList.remove('hidden');
+      title = res.level === LEVELS.length - 1 ? '🏆 You beat every level!' : 'Level Complete!';
+      if (res.level < LEVELS.length - 1) next.classList.remove('hidden');
     } else title = 'Game Over';
   } else {
     const key = res.mode;
@@ -226,7 +278,7 @@ document.addEventListener('click', e => {
     case 'resume': show(null); game.resume(); break;
     case 'restart': startGame(currentCfg); break;
     case 'menu': goMenu(); break;
-    case 'next': startGame({ mode: 'adventure', level: Math.min(9, currentCfg.level + 1) }); break;
+    case 'next': startGame({ mode: 'adventure', level: Math.min(LEVELS.length - 1, currentCfg.level + 1) }); break;
     case 'fullscreen': {
       const d = document.documentElement;
       if (!document.fullscreenElement) (d.requestFullscreen || d.webkitRequestFullscreen)?.call(d);
@@ -236,7 +288,7 @@ document.addEventListener('click', e => {
     case 'install': installApp(); break;
     case 'reset-progress':
       if (confirm('Reset all level progress and best scores?')) {
-        Object.assign(save, { unlocked: 1, stars: Array(10).fill(0), levelBest: Array(10).fill(0), best: { endless: 0, time: 0 } });
+        Object.assign(save, { unlocked: 1, stars: Array(LEVELS.length).fill(0), levelBest: Array(LEVELS.length).fill(0), best: { endless: 0, time: 0 } });
         persist();
       }
       break;
@@ -249,6 +301,35 @@ function doPause() {
   if (game.pause()) show('pause');
 }
 $('#btn-pause').addEventListener('click', () => { sfx.click(); doPause(); });
+
+// Four views: classic 3D · tilted 3D · snake-eye (first person) · top-down 2D
+const VIEW_ORDER = ['3d', 'tilt', 'fps', 'top'];
+const VIEW_LABEL = { '3d': ['🎥', '3D'], tilt: ['📐', 'TILT'], fps: ['👁️', 'FPS'], top: ['🗺️', '2D'] };
+function syncEye() { $('#fps-eye').classList.toggle('on', inGame && game.fps); }
+function syncViewBtn() {
+  syncEye();
+  const [ico, txt] = VIEW_LABEL[game.viewMode] || VIEW_LABEL['3d'];
+  $('#view-ico').textContent = ico;
+  $('#view-txt').textContent = txt;
+}
+function toggleView() {
+  const order = Game.fpsAllowed() ? VIEW_ORDER : VIEW_ORDER.filter(v => v !== 'fps');     // no first person on a portrait phone
+  game.setView(order[(Math.max(0, order.indexOf(game.viewMode)) + 1) % order.length]);
+  save.view = game.viewMode; persist(); syncViewBtn(); sfx.click();
+  if (game.viewMode === 'fps') ui.toast('👁️ Snake-eye view · ◀ ▶ turn left / right', '#bfe8ff');
+  else if (game.viewMode === 'tilt') ui.toast('📐 Tilted 3D view', '#bfe8ff');
+  else if (game.viewMode === 'top') ui.toast('🗺️ Top-down 2D view', '#bfe8ff');
+  else ui.toast('🎥 Classic 3D view', '#bfe8ff');
+}
+$('#btn-view').addEventListener('click', toggleView);
+$('#btn-rescue').addEventListener('click', () => game.rescue());
+addEventListener('keydown', e => { if (e.code === 'KeyR' && inGame && !e.repeat) game.rescue(); });
+addEventListener('keydown', e => { if (e.code === 'KeyV' && inGame && !e.repeat) toggleView(); });
+game.setView(save.view); syncViewBtn();
+function checkFpsAllowed() {
+  if (game.viewMode === 'fps' && !Game.fpsAllowed()) { game.setView('3d'); save.view = '3d'; persist(); ui.toast('👁️ First-person needs landscape or a computer', '#bfe8ff'); }
+  syncViewBtn();
+}
 input.onPause = doPause;
 document.addEventListener('visibilitychange', () => { if (document.hidden && inGame && game.state !== 'paused') { if (game.pause()) show('pause'); } });
 addEventListener('pointerdown', () => sfx.unlock(), { passive: true });
@@ -313,13 +394,29 @@ function updateHud(dt) {
     fill.style.backgroundPosition = `${100 - s.health}% 0`;
     $('#hud-health-text').textContent = Math.ceil(s.health);
   }
-  if (s.mode === 'adventure') {
-    setText('#hud-food', `🍎 ${Math.min(s.food, s.target)}/${s.target}`);
-    setText('#hud-special', `★ ${Math.min(s.special, s.specialTarget)}/${s.specialTarget}`);
-    $('#hud-food').classList.toggle('done', s.food >= s.target);
-    $('#hud-special').classList.toggle('done', s.special >= s.specialTarget);
-    $('#hud-special').classList.remove('hidden');
+  $('#btn-rescue').classList.toggle('hidden', !s.canRescue);
+  $('#hud-combo').classList.toggle('hidden', !(s.combo >= 2));
+  if (s.combo >= 2) setText('#hud-combo', `🔥 ×${s.comboMul}`);
+  const prog = $('#hud-prog'), G = s.goals;
+  prog.classList.toggle('hidden', !G);
+  $('#hud-door').classList.toggle('hidden', !s.doorOpen);
+  const goalLine = !G ? '' : s.doorOpen ? '🚪 Find the door and enter!' : '🎯 ' + goalText(G).replace(/<\/?b>/g, '').replace(/ \(pizza.*?\)/, '');
+  if (hudCache.goalLine !== goalLine) { hudCache.goalLine = goalLine; setText('#hud-goal', goalLine); }
+  if (G) {
+    const have = { fruit: s.food, special: s.special, mover: s.mover };
+    let need = 0, got = 0;
+    for (const k in G) { need += G[k]; got += Math.min(have[k], G[k]); }
+    const pct = need ? got / need : 1;
+    if (hudCache.prog !== pct) { hudCache.prog = pct; $('#hud-prog-fill').style.width = pct * 100 + '%'; $('#hud-prog-head').style.left = pct * 100 + '%'; }
+    const pill = (id, icon, k) => {
+      const el = $(id);
+      el.classList.toggle('hidden', !G[k]);
+      if (G[k]) { setText(id, `${icon} ${Math.min(have[k], G[k])}/${G[k]}`); el.classList.toggle('done', have[k] >= G[k]); }
+    };
+    pill('#hud-food', '🍎', 'fruit'); pill('#hud-special', '★', 'special'); pill('#hud-mover', '🐭', 'mover');
   } else {
+    $('#hud-mover').classList.add('hidden');
+    $('#hud-food').classList.remove('hidden', 'done'); $('#hud-special').classList.remove('hidden', 'done');
     setText('#hud-food', `🍎 ${s.food}`);
     setText('#hud-special', `📏 ${s.length}`);
   }
@@ -357,3 +454,5 @@ const ld = $('#loading');
 ld.classList.add('gone');
 setTimeout(() => ld.classList.remove('show'), 500);
 show('menu');
+
+updateRotateHint();   // after everything above is initialised

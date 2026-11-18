@@ -48,6 +48,10 @@ export class Sfx {
   poison() { this.tone(320, 0.45, 'sawtooth', 0.18, 70); }
   hurt()   { this.tone(240, 0.18, 'square', 0.18, 110); }
   crash()  { this.noise(0.35, 0.5, 900); this.tone(160, 0.3, 'square', 0.18, 40); }
+  bonk()   { this.tone(210, 0.14, 'sine', 0.22, 90); this.noise(0.1, 0.18, 500); }
+  honk()   { this.tone(330, 0.28, 'sawtooth', 0.12); this.tone(415, 0.28, 'sawtooth', 0.1); }
+  thunder(delay = 0) { this.noise(1.6, 0.7, 380, delay); this.tone(70, 1.1, 'sawtooth', 0.12, 28, delay); }
+  potion() { [440, 660, 990, 1480].forEach((f, i) => this.tone(f, 0.16, 'sine', 0.14, null, i * 0.05)); }
   fire()   { this.noise(0.7, 0.55, 1600); this.tone(110, 0.7, 'sawtooth', 0.25, 40); }
   kill()   { this.tone(380, 0.16, 'square', 0.14, 1400); }
   shrink() { this.tone(900, 0.25, 'sine', 0.2, 300); }

@@ -65,6 +65,7 @@ export class World {
     this.buildTerrain();
     this.buildWater();
     this.buildRoads();
+    this.buildTraffic();
     this.buildBridges();
     this.buildFence();
     this.buildProps();
@@ -102,12 +103,13 @@ export class World {
       if (ny < .82) _c.lerp(G.rock, smoothstep(.82, .55, ny));
       if (G.sand && map.inSand(x, z)) _c.copy(G.sand);
       if (map.roads.length && map.roadSigned(x, z) < .6) _c.lerp(dirt, .5);
+      if (T.groundDim) _c.multiplyScalar(T.groundDim);
       col[i * 3] = _c.r; col[i * 3 + 1] = _c.g; col[i * 3 + 2] = _c.b;
     }
     geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
     const tex = M.noiseTexture(128, snow ? .9 : .8);
     tex.repeat.set(E / 2.5, E / 2.5);
-    const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ vertexColors: true, map: tex, roughness: snow ? .8 : .95 }));
+    const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ vertexColors: true, map: tex, roughness: T.rain ? .55 : (snow ? .8 : .95) }));
     mesh.receiveShadow = true;
     this.group.add(mesh);
     this.terrain = mesh;
@@ -180,6 +182,41 @@ export class World {
     };
     mk(dashes, new THREE.BoxGeometry(.14, .02, .75), 0xffd84a);
     mk(edges, new THREE.BoxGeometry(.1, .02, .51), 0xf4f4f4);
+  }
+
+  // ── Traffic: cars driving up and down the roads ───────────
+  buildTraffic() {
+    const { map, T } = this, half = map.N / 2, off = map.off, rnd = this.rnd;
+    this.cars = []; this.carMesh = null; this.frozen = false;
+    if (!T.traffic || !map.roads.length) return;
+    const span = map.N + 10, n = Math.max(2, Math.round(T.traffic * map.N / 44));
+    map.roads.forEach((r, ri) => {
+      [[r.lo, -1], [r.hi, 1]].forEach(([row, dir]) => {
+        const speed = 3.2 + rnd() * 3.2, gap = span / n, phase = rnd() * gap;
+        for (let k = 0; k < n; k++) this.cars.push({ axis: r.axis, row: row - off, dir, speed, u: -half - 5 + phase + k * gap + (rnd() - .5) * gap * .35, span, half, x: 0, z: 0, hidden: false });
+      });
+    });
+    const tint = new THREE.Color();
+    this.carMesh = new THREE.InstancedMesh(M.obstacleGeometry('car'), M.obstacleMaterial('car'), this.cars.length);
+    this.cars.forEach((c, i) => this.carMesh.setColorAt(i, M.tintFor('car', rnd, tint)));
+    this.carMesh.frustumCulled = false; this.carMesh.castShadow = true; this.carMesh.receiveShadow = true;
+    this.group.add(this.carMesh);
+    this.moveCars(0);
+  }
+
+  moveCars(dt) {
+    const { map } = this, N = map.N, off = map.off;
+    this.cars.forEach((c, i) => {
+      if (!this.frozen) { c.u += c.dir * c.speed * dt; if (c.u > c.half + 5) c.u -= c.span; else if (c.u < -c.half - 5) c.u += c.span; }
+      c.x = c.axis === 'z' ? c.row : c.u; c.z = c.axis === 'z' ? c.u : c.row;
+      const cx = Math.round(c.x + off), cz = Math.round(c.z + off);
+      c.hidden = cx < 0 || cz < 0 || cx >= N || cz >= N ? false : map.cell[cz * N + cx] === WATER;
+      const y = map.groundAt(c.x, c.z);
+      const rot = c.axis === 'x' ? (c.dir > 0 ? 0 : Math.PI) : (c.dir > 0 ? -Math.PI / 2 : Math.PI / 2);
+      _m.compose(_p.set(c.x, y, c.z), _q.setFromAxisAngle(UP, rot), c.hidden ? _s.set(0, 0, 0) : _s.set(1, 1, 1));
+      this.carMesh.setMatrixAt(i, _m);
+    });
+    this.carMesh.instanceMatrix.needsUpdate = true;
   }
 
   buildBridges() {
@@ -417,7 +454,7 @@ export class World {
   // ── Weather & sky ─────────────────────────────────────────
   buildWeather() {
     const T = this.T, tex = M.glowTexture();
-    this.snow = this.fireflies = null;
+    this.snow = this.fireflies = this.rain = null;
     const pts = (n, size, color, additive) => {
       const g = new THREE.BufferGeometry();
       g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(n * 3), 3));
@@ -431,6 +468,15 @@ export class World {
       const n = Math.round(T.snowfall * (this.quality === 'low' ? .5 : 1));
       this.snow = pts(n, .22, 0xffffff, false);
       this.snowData = Array.from({ length: n }, () => ({ x: Math.random() * 44 - 22, y: Math.random() * 12, z: Math.random() * 44 - 22, v: .7 + Math.random() * .9, p: Math.random() * 6 }));
+    }
+    if (T.rain) {
+      const n = Math.round(T.rain * (this.quality === 'low' ? .5 : 1));
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(n * 6), 3));
+      this.rain = new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color: 0xcfe2f4, transparent: true, opacity: .5, depthWrite: false }));
+      this.rain.frustumCulled = false;
+      this.group.add(this.rain);
+      this.rainData = Array.from({ length: n }, () => ({ x: Math.random() * 50 - 25, y: Math.random() * 16, z: Math.random() * 50 - 25, v: 15 + Math.random() * 9 }));
     }
     if (T.fireflies) {
       const n = T.fireflies;
@@ -519,6 +565,17 @@ export class World {
       });
       p.needsUpdate = true;
     }
+    if (this.rain) {
+      const p = this.rain.geometry.attributes.position, gy = this.map.heightAt(focus.x, focus.z), w = this.T.wind ? 5 : 1.6;
+      this.rainData.forEach((d, i) => {
+        d.y -= d.v * dt;
+        if (d.y < -.5) { d.y = 16; d.x = Math.random() * 50 - 25; d.z = Math.random() * 50 - 25; }
+        const x = focus.x + d.x, y = gy + d.y, z = focus.z + d.z;
+        p.setXYZ(i * 2, x, y, z); p.setXYZ(i * 2 + 1, x - w * .045, y + .75, z - w * .02);
+      });
+      p.needsUpdate = true;
+    }
+    if (this.cars?.length) this.moveCars(dt);
     if (this.fireflies) {
       const p = this.fireflies.geometry.attributes.position, c = this.fireflies.geometry.attributes.color;
       this.flyData.forEach((f, i) => {
