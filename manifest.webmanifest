@@ -1,7 +1,7 @@
 {
   "id": "./",
-  "name": "Slither 3D – Snake Adventure",
-  "short_name": "Slither 3D",
+  "name": "Snake 3D – Snake Adventure",
+  "short_name": "Snake 3D",
   "description": "A 3D snake game with 10 levels, 10 maps and 9 special fruits. Works offline.",
   "start_url": "./?source=pwa",
   "scope": "./",

@@ -110,7 +110,7 @@ server.on('error', err => {
 // 0.0.0.0 → reachable from localhost and from other devices on the same network
 server.listen(port, '0.0.0.0', () => {
   const g = s => `\x1b[32m${s}\x1b[0m`, c = s => `\x1b[36m${s}\x1b[0m`;
-  console.log(`\n  🐍 ${g('Slither 3D')} is running!\n`);
+  console.log(`\n  🐍 ${g('Snake 3D')} is running!\n`);
   console.log(`  💻 This computer:   ${c(`http://localhost:${port}`)}`);
   const lan = lanAddresses();
   if (lan.length) {

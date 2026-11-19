@@ -42,7 +42,8 @@ button { font-family: inherit; }
   animation: pop .3s cubic-bezier(.2, 1.4, .4, 1);
 }
 .panel.wide { width: min(760px, 100%); }
-.panel.scroll, .panel.wide { overflow-y: auto; }
+.panel { overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
+.panel > * { flex-shrink: 0; }
 @keyframes pop { from { transform: scale(.9); opacity: 0 } to { transform: scale(1); opacity: 1 } }
 
 h2 { margin: 0 0 4px; font-size: 28px; }
@@ -97,6 +98,7 @@ h3 { margin: 10px 0 4px; }
 /* ── Install (PWA) ──────────────────────────── */
 .btn.install { background: rgba(255, 210, 63, .14); border-color: rgba(255, 210, 63, .5); color: #ffe27a; }
 .install-hint { margin: 0; font-size: 13px; color: #ffe27a; background: rgba(255, 210, 63, .1); border-radius: 10px; padding: 8px 10px; }
+.credit { margin: 2px 0 0; font-size: 12px; color: var(--muted); text-align: center; opacity: .8; }
 
 /* ── How to play ────────────────────────────── */
 .howto-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; text-align: left; }
@@ -118,22 +120,27 @@ h3 { margin: 10px 0 4px; }
 /* ── HUD ────────────────────────────────────── */
 #hud { position: fixed; inset: 0; pointer-events: none; z-index: 10; }
 .hud-top {
-  position: absolute; top: calc(10px + var(--safe-top)); left: 10px; right: 10px; display: flex; gap: 10px; align-items: flex-start;
+  position: absolute; top: calc(10px + var(--safe-top)); left: calc(10px + env(safe-area-inset-left, 0px)); right: calc(10px + env(safe-area-inset-right, 0px));
+  display: flex; gap: 10px; align-items: flex-start; justify-content: space-between;
 }
+/* top-left: pause + camera · top-right: level goal and health bar */
+.hud-left { display: flex; gap: 8px; }
 .hud-block { background: rgba(10, 14, 36, .55); border: 1px solid rgba(255, 255, 255, .12); border-radius: 14px; padding: 6px 12px; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
-.hud-block.grow { flex: 1; max-width: 320px; }
-.hud-block.right { margin-left: auto; text-align: right; }
+.hud-block.right { width: min(58vw, 300px); text-align: left; }
+.hud-row { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
 .hud-level { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .health { position: relative; height: 14px; background: rgba(255, 255, 255, .12); border-radius: 8px; overflow: hidden; margin-top: 4px; }
 .health-fill { height: 100%; width: 100%; background: linear-gradient(90deg, #ff4d6d, #ffb347 50%, #43c463); background-size: 300% 100%; transition: width .25s; border-radius: 8px; }
 .health span { position: absolute; inset: 0; font-size: 11px; line-height: 14px; text-align: center; font-weight: 700; text-shadow: 0 1px 2px #000; }
 .health span::before { content: '❤ '; }
 .hud-score { font-size: 24px; font-weight: 700; line-height: 1.1; color: var(--accent-2); text-shadow: 0 2px 0 rgba(0, 0, 0, .4); }
-.goals { display: flex; gap: 6px; justify-content: flex-end; margin-top: 2px; flex-wrap: wrap; }
+.goals { display: flex; gap: 6px; justify-content: flex-start; margin-top: 2px; flex-wrap: wrap; }
 .pill { background: rgba(255, 255, 255, .1); border-radius: 999px; padding: 1px 8px; font-size: 13px; font-weight: 600; white-space: nowrap; }
 .pill.done { background: rgba(67, 196, 99, .5); }
 .hud-goal { font-size: 12px; font-weight: 600; color: #ffe9a8; line-height: 1.2; margin: 1px 0 3px; text-shadow: 0 1px 2px rgba(0, 0, 0, .6); }
 .hud-goal:empty { display: none; }
+.hud-goal.go { color: #9affc8; font-size: 15px; font-weight: 700; animation: goPulse 1s ease-in-out infinite; }
+@keyframes goPulse { 50% { opacity: .55; } }
 .icon-btn {
   pointer-events: auto; width: 44px; height: 44px; border-radius: 14px; border: 1px solid rgba(255, 255, 255, .15);
   background: rgba(10, 14, 36, .55); color: #fff; font-size: 18px; cursor: pointer; backdrop-filter: blur(8px);
@@ -145,12 +152,6 @@ h3 { margin: 10px 0 4px; }
 }
 .chip .e { font-size: 18px; }
 .chip i { position: absolute; left: 0; bottom: 0; height: 3px; background: var(--c); }
-#minimap {
-  position: absolute; right: 10px; top: calc(78px + var(--safe-top)); width: 132px; height: 132px; border-radius: 14px;
-  border: 2px solid rgba(255, 255, 255, .35); box-shadow: 0 6px 18px rgba(0, 0, 0, .35); background: rgba(10, 14, 36, .5);
-  image-rendering: pixelated; opacity: .92;
-}
-@media (max-width: 560px), (max-height: 520px) { #minimap { width: 96px; height: 96px; } }
 .intro .tip { font-size: 13px; color: #bfe8ff; }
 .sprint-badge {
   position: absolute; left: 50%; bottom: calc(24px + var(--safe-bottom)); transform: translateX(-50%) scale(.8); opacity: 0;
@@ -170,12 +171,6 @@ h3 { margin: 10px 0 4px; }
 .d.up { left: 61px; top: 0; } .d.down { left: 61px; bottom: 0; } .d.left { left: 0; top: 61px; } .d.right { right: 0; top: 61px; }
 .boost { right: calc(22px + env(safe-area-inset-right, 0px)); bottom: calc(40px + var(--safe-bottom)); width: 96px; height: 96px; border-radius: 50%; font-size: 30px; display: flex; flex-direction: column; align-items: center; justify-content: center; }
 .boost small { font-size: 11px; font-weight: 700; letter-spacing: 1px; }
-body.dpad-on #minimap {
-  position: absolute; right: 10px; top: calc(78px + var(--safe-top)); width: 132px; height: 132px; border-radius: 14px;
-  border: 2px solid rgba(255, 255, 255, .35); box-shadow: 0 6px 18px rgba(0, 0, 0, .35); background: rgba(10, 14, 36, .5);
-  image-rendering: pixelated; opacity: .92;
-}
-@media (max-width: 560px), (max-height: 520px) { #minimap { width: 96px; height: 96px; } }
 .intro .tip { font-size: 13px; color: #bfe8ff; }
 .sprint-badge { bottom: calc(150px + var(--safe-bottom)); }
 
@@ -249,15 +244,15 @@ body.dpad-on .rescue-btn { bottom: calc(220px + var(--safe-bottom)); }
 
 .pill.combo { background: rgba(255, 150, 40, .65); }
 
-/* snake-eye view: an oval window with scaly edges, a soft golden rim and slow blinking eyelids */
+/* snake-eye view: a wide circular lens with scaly edges, a soft golden rim and slow blinking eyelids */
 #fps-eye { position: fixed; inset: 0; pointer-events: none; z-index: 2; display: none; overflow: hidden;
   background:
-    radial-gradient(ellipse 58% 47% at 50% 50%, transparent 62%, rgba(255, 214, 90, .10) 68%, rgba(0, 0, 0, .55) 80%, rgba(0, 0, 0, .92) 93%, #000 100%); }
+    radial-gradient(circle farthest-corner at 50% 50%, transparent 70%, rgba(255, 214, 90, .08) 75%, rgba(0, 0, 0, .5) 87%, rgba(0, 0, 0, .9) 97%, #000 100%); }
 #fps-eye.on { display: block; }
 #fps-eye::before { content: ''; position: absolute; inset: 0; opacity: .5;
   background: radial-gradient(circle at 50% 100%, rgba(0, 0, 0, .55) 38%, transparent 42%) 0 0 / 22px 16px, radial-gradient(circle at 50% 0%, rgba(120, 255, 150, .14) 30%, transparent 34%) 11px 8px / 22px 16px;
-  -webkit-mask-image: radial-gradient(ellipse 58% 47% at 50% 50%, transparent 66%, #000 92%); mask-image: radial-gradient(ellipse 58% 47% at 50% 50%, transparent 66%, #000 92%); }
-#fps-eye::after { content: ''; position: absolute; inset: 0; box-shadow: inset 0 0 90px 30px rgba(0, 0, 0, .35); }
+  -webkit-mask-image: radial-gradient(circle farthest-corner at 50% 50%, transparent 72%, #000 96%); mask-image: radial-gradient(circle farthest-corner at 50% 50%, transparent 72%, #000 96%); }
+#fps-eye::after { content: ''; position: absolute; inset: 0; box-shadow: inset 0 0 60px 14px rgba(0, 0, 0, .3); }
 #fps-eye .lid { position: absolute; left: 0; right: 0; height: 50%; background: #000; transform: scaleY(0); }
 #fps-eye .lid.top { top: 0; transform-origin: top; animation: lidTop 6s infinite; }
 #fps-eye .lid.bot { bottom: 0; transform-origin: bottom; animation: lidBot 6s infinite; }
@@ -312,3 +307,8 @@ body.dpad-on .rescue-btn { bottom: calc(220px + var(--safe-bottom)); }
   .pad { transform: scale(.85); transform-origin: bottom left; }
   .boost { transform: scale(.85); transform-origin: bottom right; }
 }
+
+/* blind spell: everything but the ground is hidden, the edges of the screen go dark purple */
+#blind-fx { position: fixed; inset: 0; pointer-events: none; z-index: 3; opacity: 0; transition: opacity .35s;
+  background: radial-gradient(circle farthest-corner at 50% 50%, rgba(30, 10, 70, 0) 35%, rgba(30, 10, 70, .55) 100%); }
+body.blind #blind-fx { opacity: 1; }

@@ -60,6 +60,7 @@ export class World {
     this.rnd = mulberry32(map.seed * 31 + 7);
     this.sources = [];
     this.obsInst = [];
+    this.propMeshes = [];
     this.destroying = [];
     this.props = {};
     this.buildTerrain();
@@ -338,10 +339,18 @@ export class World {
         });
         im.computeBoundingSphere();
         im.castShadow = true; im.receiveShadow = true;
+        this.propMeshes.push(im);
         this.group.add(im);
       }
     }
     this.props = null;
+  }
+
+  /** Blind spell: only the ground stays visible. Trees, rocks, houses, cars and wildlife vanish from sight. */
+  setBlind(on) {
+    this.propMeshes.forEach(m => { m.visible = !on; });
+    if (this.carMesh) this.carMesh.visible = !on;
+    if (this.wildlife) this.wildlife.group.visible = !on;
   }
 
   destroyObstacle(oid) {

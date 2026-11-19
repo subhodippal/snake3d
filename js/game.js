@@ -2,10 +2,11 @@
 //  Core game: grid logic on an open 3D world, effects, camera
 // ───────────────────────────────────────────────────────────
 import * as THREE from 'three';
-import { LEVELS, FRUITS, FOODS, ALL_FRUITS, themeFor } from './levels.js';
+import { LEVELS, FRUITS, FOODS, ALL_FRUITS, DENS, HAZARDS, themeFor } from './levels.js';
 import { generateMap, FREE, OBST, WATER, BRIDGE, ROAD, WATER_Y, walkable } from './mapgen.js';
 import * as M from './models.js';
 import { Particles } from './fx.js';
+import { HAZ, HAZ_BY_ID, makeShape, buildZone } from './hazards.js';
 import { World } from './world.js';
 import { DIRS, OPP } from './input.js';
 
@@ -16,6 +17,17 @@ const TUBE_R = 14, TUBE_SPC = 4;      // vertices per ring, rings per grid cell
 const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _s = new THREE.Vector3(), _p = new THREE.Vector3(), _c = new THREE.Color(), _v = new THREE.Vector3();
 const rand = (a = 1, b) => (b === undefined ? Math.random() * a : a + Math.random() * (b - a));
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+// Damage taken from bumping into things (it also stops the snake until it turns).
+const CRASH_DMG = { fence: 5, rock: 7, water: 10, self: 4 };
+// Animals that live in a den and bite anything that comes close. They stay inside their own area.
+const DEN_ANIMALS = {
+  crab: { emoji: '🦀', name: 'Crab', dmg: 8, interval: .42, aggro: 5, chase: .3, build: () => M.makeCrab() },
+  scorpion: { emoji: '🦂', name: 'Scorpion', dmg: 12, interval: .4, aggro: 6, chase: .5, build: () => M.makeScorpion() },
+  wolf: { emoji: '🐺', name: 'Wolf', dmg: 14, interval: .3, aggro: 8, chase: .7, build: () => M.makeWolf() },
+  dog: { emoji: '🐕', name: 'Stray dog', dmg: 10, interval: .34, aggro: 7, chase: .6, build: () => M.makeWolf(0xa8703a, 0xe8d4b0) },
+  boar: { emoji: '🐗', name: 'Wild boar', dmg: 15, interval: .36, aggro: 6, chase: .55, build: () => M.makeBoar() },
+  spider: { emoji: '🕷️', name: 'Spider', dmg: 12, interval: .32, aggro: 6, chase: .6, build: () => M.makeSpider() },
+};
 const angleOf = n => Math.atan2(DIRS[n].x, DIRS[n].z);
 const easeOutBack = t => { const c = 1.7; return 1 + (c + 1) * Math.pow(t - 1, 3) + c * Math.pow(t - 1, 2); };
 function lerpAngle(a, b, t) {
@@ -54,6 +66,10 @@ export class Game {
     this.world = new World(this.scene, this.particles);
     this.actors = new THREE.Group();
     this.scene.add(this.actors);
+    this.hazardGroup = new THREE.Group();            // poison pools, fires, lava and animal dens
+    this.scene.add(this.hazardGroup);
+    this.zones = [];
+    this.hazard = new Uint8Array(0); this.avoid = new Uint8Array(0);
 
     // Snake visuals
     this.head = M.makeHead();
@@ -146,16 +162,14 @@ export class Game {
     this.ringSin = Array.from({ length: TUBE_R }, (_, j) => Math.sin(j / TUBE_R * Math.PI * 2));
   }
 
-  /** 'top' = 2D map view, '3d' = classic chase cam, 'tilt' = low, tilted 3D, 'fps' = through the snake's eyes. */
+  /** '3d' = classic chase cam, 'tilt' = low, tilted 3D, 'fps' = through the snake's eyes (portrait and landscape). */
   setView(mode) {
-    const m = ['top', '3d', 'tilt', 'fps'].includes(mode) ? mode : '3d';
+    const m = ['3d', 'tilt', 'fps'].includes(mode) ? mode : '3d';
     if ((m === 'fps') !== (this.viewMode === 'fps')) this.snapCamera = true;
     this.viewMode = m;
     this.input.clear();
   }
-  /** First person needs a wide screen: desktop or a phone held sideways. */
-  static fpsAllowed() { return !(matchMedia('(pointer: coarse)').matches && innerHeight > innerWidth); }
-  get fps() { return this.viewMode === 'fps' && this.state !== 'demo' && Game.fpsAllowed(); }
+  get fps() { return this.viewMode === 'fps' && this.state !== 'demo'; }
 
   setQuality(q) {
     const changed = this.quality && this.quality !== q;
@@ -207,11 +221,70 @@ export class Game {
     {
       const T = this.theme;
       L.crocs = this.shoreCells.length && this.levelIndex >= 2 && T.crocs ? Math.min(4, T.crocs + Math.floor(this.levelIndex / 9)) : 0;
-      L.crabs = this.levelIndex >= 2 ? Math.round((T.crabs || 0) * (L.size / 60)) : 0;
-      if (this.demo) { L.crocs = Math.min(L.crocs, 1); L.crabs = Math.min(L.crabs, 1); }
+      if (this.demo) L.crocs = Math.min(L.crocs, 1);
     }
     this.buildWorld();
+    this.buildZones();
     this.reset();
+  }
+
+  /** Random reachable free spot for a hazard or den, away from the start, the fence and the other zones. */
+  placeZone(kind) {
+    const N = this.N, R = HAZ[kind].r, st = this.start;
+    let best = null, bestScore = 0;
+    for (let t = 0; t < 70; t++) {
+      const cx = 3 + ((Math.random() * (N - 6)) | 0), cz = 3 + ((Math.random() * (N - 6)) | 0);
+      if (Math.abs(cx - st.x) + Math.abs(cz - st.z) < Math.max(12, N * .22)) continue;
+      if (this.zones.some(z => Math.hypot(z.cx - cx, z.cz - cz) < z.R + R + 3)) continue;
+      let ok = 0, all = 0;
+      for (let dz = -Math.ceil(R + 1); dz <= Math.ceil(R + 1); dz++) for (let dx = -Math.ceil(R + 1); dx <= Math.ceil(R + 1); dx++) {
+        if (Math.hypot(dx, dz) > R + 1) continue;
+        all++;
+        const x = cx + dx, z = cz + dz;
+        if (this.inBounds(x, z) && this.grid[z * N + x] === FREE && this.reachable[z * N + x]) ok++;
+      }
+      const score = ok / all;
+      if (this.grid[cz * N + cx] === FREE && score > bestScore) { best = { cx, cz }; bestScore = score; }
+      if (score > .93) break;
+    }
+    if (!best || bestScore < .75) return null;
+    const shape = makeShape(kind, best.cx, best.cz);
+    const zone = { kind, cx: best.cx, cz: best.cz, R, shape };
+    const cellOk = (x, z) => this.inBounds(x, z) && this.grid[z * N + x] === FREE;
+    const v = buildZone(kind, best.cx, best.cz, shape, { N, cellOk, groundAt: (x, z) => this.ground(x, z), particles: this.particles });
+    zone.update = v.update;
+    this.hazardGroup.add(v.group);
+    const id = HAZ[kind].id;
+    for (let z = Math.floor(best.cz - R * 1.4); z <= Math.ceil(best.cz + R * 1.4); z++) for (let x = Math.floor(best.cx - R * 1.4); x <= Math.ceil(best.cx + R * 1.4); x++) {
+      if (!cellOk(x, z) || shape(x, z) >= 1) continue;
+      this.avoid[z * N + x] = 1;
+      if (id) this.hazard[z * N + x] = id;
+    }
+    this.zones.push(zone);
+    return zone;
+  }
+
+  /** Poison pools, fires and lava, plus the dens of the biting animals of this place. */
+  buildZones() {
+    this.hazardGroup.children.slice().forEach(c => { this.hazardGroup.remove(c); this.disposeTree(c); });
+    const N = this.N, key = this.theme.key;
+    this.zones = []; this.dens = [];
+    this.hazard = new Uint8Array(N * N); this.avoid = new Uint8Array(N * N);
+    const k = clamp(N / 60, .8, 1.6);
+    for (const [kind, n] of HAZARDS[key] || []) for (let i = 0, c = Math.max(1, Math.round(n * k)); i < c; i++) this.placeZone(kind);
+    if (this.demo) return;
+    for (const [kind, members] of DENS[key] || []) {
+      const zone = this.placeZone('den');
+      if (zone) this.dens.push({ kind, members: members + (this.levelIndex >= 14 ? 1 : 0), zone });
+    }
+  }
+
+  /** Short list of the dangers of this level for the intro card. */
+  dangerSummary() {
+    const out = [];
+    for (const z of this.zones) if (z.kind !== 'den') { const t = `${HAZ[z.kind].emoji} ${HAZ[z.kind].name}`; if (!out.includes(t)) out.push(t); }
+    for (const d of this.dens) { const t = `${DEN_ANIMALS[d.kind].emoji} ${DEN_ANIMALS[d.kind].name} den`; if (!out.includes(t)) out.push(t); }
+    return out;
   }
 
   /** Cells beside water (crocodile territory). */
@@ -282,50 +355,6 @@ export class Game {
     this.sunOffset = T.sunBig ? new THREE.Vector3(-20, 7, 7) : T.sunLow ? new THREE.Vector3(-18, 11, 6) : T.dark ? new THREE.Vector3(-8, 26, -6) : new THREE.Vector3(10, 26, 8);
     this.renderer.toneMappingExposure = T.dark ? 1.15 : 1.05;
     this.world.build(T, this.map, this.quality);
-    this.buildMinimap();
-  }
-
-  buildMinimap() {
-    const N = this.N, T = this.theme, c = document.createElement('canvas');
-    c.width = c.height = N;
-    const g = c.getContext('2d'), img = g.createImageData(N, N);
-    const ga = new THREE.Color(T.ground.a), wc = new THREE.Color(T.water?.color ?? 0x3aa6e0);
-    const col = {
-      [FREE]: ga, [ROAD]: new THREE.Color(0x55555e), [WATER]: wc.clone().lerp(new THREE.Color(0x2a6aff), .3),
-      [BRIDGE]: new THREE.Color(0xc08a4a), [OBST]: ga.clone().multiplyScalar(.45),
-    };
-    for (let i = 0; i < N * N; i++) {
-      const cc = col[this.grid[i]] || ga;
-      const x = i % N, z = (i / N) | 0, hgt = this.map.heightAt(x - this.map.off, z - this.map.off);
-      const shade = this.grid[i] === FREE ? clamp(.85 + hgt * .12, .7, 1.25) : 1;
-      img.data[i * 4] = Math.min(255, cc.r * 255 * shade); img.data[i * 4 + 1] = Math.min(255, cc.g * 255 * shade); img.data[i * 4 + 2] = Math.min(255, cc.b * 255 * shade); img.data[i * 4 + 3] = 255;
-    }
-    if (T.dark) for (let i = 0; i < N * N; i++) for (let k = 0; k < 3; k++) img.data[i * 4 + k] = Math.min(255, img.data[i * 4 + k] * 1.6 + 20);
-    g.putImageData(img, 0, 0);
-    this.minimapBase = c;
-  }
-
-  /** Draws the minimap into a 2D context. */
-  drawMinimap(ctx, size) {
-    if (!this.minimapBase || !this.body) return;
-    const N = this.N, k = size / N;
-    ctx.imageSmoothingEnabled = false;
-    ctx.clearRect(0, 0, size, size);
-    ctx.drawImage(this.minimapBase, 0, 0, size, size);
-    ctx.fillStyle = 'rgba(0,0,0,.25)'; ctx.fillRect(0, 0, size, size);
-    ctx.drawImage(this.minimapBase, 0, 0, size, size);
-    // view area
-    const h = this.body[0];
-    ctx.strokeStyle = 'rgba(255,255,255,.35)'; ctx.lineWidth = 1;
-    ctx.strokeRect((h.x - 11) * k, (h.z - 8) * k, 22 * k, 16 * k);
-    // snake
-    ctx.fillStyle = '#' + _c.set(M.SKINS[this.skinIndex].a ?? 0x43c463).getHexString();
-    for (let i = 1; i < this.body.length; i++) ctx.fillRect(this.body[i].x * k, this.body[i].z * k, Math.max(2, k), Math.max(2, k));
-    const blink = Math.sin(this.time * 8) > 0;
-    const dot = (x, z, r, color) => { ctx.fillStyle = color; ctx.beginPath(); ctx.arc((x + .5) * k, (z + .5) * k, r, 0, 7); ctx.fill(); };
-    for (const e of this.enemies) if (e.alive) dot(e.x, e.z, 2.5, '#c050ff');
-    if (this.doorOpen && this.door) { const bx = (this.door.cx + .5) * k, bz = (this.door.cz + .5) * k, r = blink ? 6 : 4.5; ctx.fillStyle = '#6affb4'; ctx.fillRect(bx - r, bz - r, r * 2, r * 2); ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5; ctx.strokeRect(bx - r, bz - r, r * 2, r * 2); }
-    dot(h.x, h.z, 3.5, '#ffffff');
   }
 
   // ── State reset ───────────────────────────────────────────
@@ -367,7 +396,10 @@ export class Game {
     this.elapsed = 0;
     this.endT = 0; this.endKind = null; this.reported = false;
     this.goalHint = false; this.waterHint = false;
-    this.bumpT = 0; this.bumpCool = 0; this.stuck = 0;
+    this.bumpT = 0; this.bumpCool = 0; this.stuck = 0; this.waitTurn = false;
+    this.healsLeft = this.demo ? 0 : 1 + (this.levelIndex % 2);       // every level hides only 1 or 2 Live Spells
+    this.healNext = 16;
+    this.hazT = 0; this.hazHint = {};
     this.dizzy.visible = false;
     this.sprinting = false;
     if (this.goals) this.placeDoor();
@@ -375,7 +407,7 @@ export class Game {
     this.spawnAnimals();
     for (let i = 0; i < this.L.enemies; i++) this.spawnEnemy('slime');
     for (let i = 0; i < (this.L.crocs || 0); i++) this.spawnEnemy('croc');
-    for (let i = 0; i < (this.L.crabs || 0); i++) this.spawnEnemy('crab');
+    for (const d of this.dens) for (let i = 0; i < d.members; i++) this.spawnEnemy(d.kind, d.zone);
     this.state = this.demo ? 'demo' : 'countdown';
     this.countdown = 3;
     this.lastCount = null;
@@ -413,7 +445,7 @@ export class Game {
     const N = this.N, occ = this.occupied(), h = this.body[0], list = [];
     for (let i = 0; i < N * N; i++) {
       const t = this.grid[i];
-      if (!this.reachable[i] || (t !== FREE && t !== ROAD) || occ.has(i)) continue;
+      if (!this.reachable[i] || (t !== FREE && t !== ROAD) || occ.has(i) || this.avoid[i]) continue;
       const x = i % N, z = (i / N) | 0, d = Math.abs(x - h.x) + Math.abs(z - h.z);
       if (d >= minDist && d <= maxDist) list.push(i);
     }
@@ -425,7 +457,7 @@ export class Game {
     if (this.cfg.mode === 'endless') iv = Math.max(.125, iv - this.foodEaten * .001);
     if (this.effects.fast) iv *= .6;
     if (this.effects.slow) iv *= 1.7;
-    if (this.fps) iv *= 1.9;               // first person feels much faster, so slow it down a lot
+    if (this.fps) iv *= 3;                 // first person feels much faster, so slow it down a lot
     if (this.sprinting) iv *= .55;
     return iv;
   }
@@ -478,7 +510,7 @@ export class Game {
     const nF = cnt('fruit'), nSF = cnt('special'), nP = this.specials.length;
     let wF = free || (G.fruit && this.foodEaten < G.fruit) ? 3 : 1.2;
     let wSF = free ? .5 : (G.special && this.specialEaten < G.special ? 1.4 : .25);     // special food is rare
-    let wP = this.L.fruits.length ? .7 : 0;
+    let wP = this.randomPool().length ? .7 : 0;
     if (nSF >= 1) wSF = 0;
     if (nP >= 2) wP = 0;
     if (!nF) wF += 5;
@@ -499,7 +531,15 @@ export class Game {
   manageFood(dt) {
     for (const sp of [...this.specials]) {
       sp.life -= dt; sp.t += dt;
-      if (sp.life <= 0) { this.removeSpecial(sp); this.foodSpawnT = Math.min(this.foodSpawnT, .5); }
+      if (sp.life <= 0) {
+        this.removeSpecial(sp); this.foodSpawnT = Math.min(this.foodSpawnT, .5);
+        if (sp.key === 'heal') this.healNext = this.elapsed + 6;       // missed it: another one comes later (still only 1-2 eaten per level)
+      }
+    }
+    // the Live Spell: appears only when you need it, and never more than 1-2 times per level
+    if (this.healsLeft > 0 && this.elapsed >= this.healNext && this.health <= 75 && !this.specials.some(s => s.key === 'heal')) {
+      this.spawnSpecial('heal');
+      this.healNext = this.elapsed + 8;
     }
     const frozen = !!this.effects.freeze;
     for (const f of [...this.foods]) {
@@ -541,7 +581,7 @@ export class Game {
       const x = f.x + DIRS[n].x, z = f.z + DIRS[n].z;
       if (!this.inBounds(x, z)) continue;
       const i = z * N + x;
-      if (!walkable(this.grid[i]) || bodySet.has(i)) continue;
+      if (!walkable(this.grid[i]) || bodySet.has(i) || this.hazard[i]) continue;
       if (this.foods.some(o => o !== f && o.x === x && o.z === z) || this.specials.some(o => o.x === x && o.z === z)) continue;
       if (this.door && x === this.door.cx && z === this.door.cz) continue;
       f.px = f.x; f.pz = f.z; f.x = x; f.z = z; f.mt = 0; f.face = Math.atan2(DIRS[n].x, DIRS[n].z);
@@ -557,7 +597,7 @@ export class Game {
   }
 
   /** The arrow only shows once the exit is open: you have to find the food yourself. */
-  arrowTarget() { return null; }
+  arrowTarget() { return this.doorOpen && this.door ? this.door.group.position : null; }
 
   // ── The exit door: hidden in the fence until every goal is done ──
   placeDoor() {
@@ -567,7 +607,7 @@ export class Game {
       for (let i = 0; i < N * N; i++) {
         const x = i % N, z = (i / N) | 0;
         if (!hole && x && z && x < N - 1 && z < N - 1) continue;
-        if (!this.reachable[i] || (this.grid[i] !== FREE && this.grid[i] !== ROAD)) continue;
+        if (!this.reachable[i] || (this.grid[i] !== FREE && this.grid[i] !== ROAD) || this.avoid[i]) continue;
         if (Math.abs(x - st.x) + Math.abs(z - st.z) < minD) continue;
         out.push(i);
       }
@@ -598,15 +638,20 @@ export class Game {
     this.say('flash', 'rgba(154,255,200,.3)');
   }
 
-  spawnSpecial() {
-    const pool = this.L.fruits;
-    const weights = pool.map(k => (['mushroom', 'sword', 'burn'].includes(k) ? .6 : k === 'devil' ? .7 : 1));
+  /** Spells and gems that may show up at random. The Live Spell is handled separately (see manageHeal). */
+  randomPool() { return this.L.fruits.filter(k => k !== 'heal'); }
+
+  spawnSpecial(forceKey) {
+    const pool = this.randomPool();
+    if (!forceKey && !pool.length) return;
+    const weights = pool.map(k => (['mushroom', 'sword', 'burn', 'blind'].includes(k) ? .6 : k === 'devil' ? .7 : 1));
     let r = rand(weights.reduce((a, b) => a + b, 0)), key = pool[0];
     for (let i = 0; i < pool.length; i++) { r -= weights[i]; if (r <= 0) { key = pool[i]; break; } }
+    if (forceKey) key = forceKey;
     const idx = this.randomFreeCell(3, 14) ?? this.randomFreeCell(3);
     if (idx == null) return;
-    const mesh = M.makeSpecial(key);
-    const sp = { key, x: idx % this.N, z: (idx / this.N) | 0, life: 14, t: 0, mesh };
+    const mesh = M.makeSpecial(key), life = key === 'heal' ? 24 : 14;
+    const sp = { key, x: idx % this.N, z: (idx / this.N) | 0, life, max: life, t: 0, mesh };
     mesh.position.copy(this.cellPos(sp.x, sp.z));
     this.actors.add(mesh);
     this.specials.push(sp);
@@ -620,24 +665,34 @@ export class Game {
     this.specials.splice(this.specials.indexOf(sp), 1);
   }
 
-  enemyCell(kind) {
+  enemyCell(kind, den) {
     if (kind === 'croc') {
       const occ = this.occupied(), h = this.body[0], N = this.N, c = [];
       for (const i of this.shoreCells) { if (occ.has(i)) continue; if (Math.abs(i % N - h.x) + Math.abs(((i / N) | 0) - h.z) >= 8) c.push(i); }
       return c.length ? c[(Math.random() * c.length) | 0] : null;
     }
+    if (den) {                       // inside the den's own area
+      const occ = this.occupied(), h = this.body[0], N = this.N, c = [];
+      for (let dz = -2; dz <= 2; dz++) for (let dx = -2; dx <= 2; dx++) {
+        const x = den.cx + dx, z = den.cz + dz, i = z * N + x;
+        if (!this.inBounds(x, z) || this.grid[i] !== FREE || this.hazard[i] || occ.has(i) || Math.abs(x - h.x) + Math.abs(z - h.z) < 3) continue;
+        c.push(i);
+      }
+      return c.length ? c[(Math.random() * c.length) | 0] : null;
+    }
     return this.randomFreeCell(8, 22) ?? this.randomFreeCell(4);
   }
 
-  /** Hazards: purple slimes, crocodiles that lurk by the water and red crabs on the sand. */
-  spawnEnemy(kind = 'slime') {
-    const idx = this.enemyCell(kind);
+  /** Enemies: purple slimes, crocodiles that lurk by the water, and den animals (crabs, wolves, ...) that guard their own area. */
+  spawnEnemy(kind = 'slime', den = null) {
+    const idx = this.enemyCell(kind, den);
     if (idx == null) return;
-    const mesh = kind === 'croc' ? M.makeCroc() : kind === 'crab' ? M.makeCrab() : M.makeSlime(this.theme.enemy ?? 0x9b4dff);
+    const def = DEN_ANIMALS[kind];
+    const mesh = kind === 'croc' ? M.makeCroc() : def ? def.build() : M.makeSlime(this.theme.enemy ?? 0x9b4dff);
     this.actors.add(mesh);
     const x = idx % this.N, z = (idx / this.N) | 0;
-    const interval = kind === 'croc' ? .8 : kind === 'crab' ? .3 : Math.max(.32, .6 - this.levelIndex * .025);
-    const e = { kind, x, z, px: x, pz: z, mt: 1, timer: rand(.5, 1.2), interval, mesh, alive: true, face: rand(6.3), spawnT: 0, respawnT: 0, phase: rand(6.3), stun: 0 };
+    const interval = kind === 'croc' ? .8 : def ? def.interval : Math.max(.32, .6 - this.levelIndex * .025);
+    const e = { kind, x, z, px: x, pz: z, mt: 1, timer: rand(.5, 1.2), interval, mesh, alive: true, face: rand(6.3), spawnT: 0, respawnT: 0, phase: rand(6.3), stun: 0, def, home: den, leash: den ? Math.ceil(den.R) + 1 : 0, dir: null };
     mesh.position.copy(this.cellPos(x, z));
     this.enemies.push(e);
   }
@@ -645,16 +700,17 @@ export class Game {
   enemyCanEnter(e, i) {
     const t = this.grid[i];
     if (e.kind === 'croc') return t === WATER || ((t === FREE || t === ROAD) && this.nearWater[i] === 1);
+    if (this.hazard[i]) return false;                  // animals keep out of fire, lava and poison
     return t !== OBST && t !== WATER;
   }
 
   reviveEnemy(e) {
-    const idx = this.enemyCell(e.kind);
+    const idx = this.enemyCell(e.kind, e.home);
     if (idx == null) { e.respawnT = 2; return; }
     e.x = e.px = idx % this.N; e.z = e.pz = (idx / this.N) | 0;
     e.alive = true; e.spawnT = 0; e.mt = 1; e.stun = 0; e.mesh.visible = true;
     const p = this.cellPos(e.x, e.z);
-    this.particles.emit(p.x, p.y + .4, p.z, 16, { color: e.kind === 'crab' ? 0xe8281e : e.kind === 'croc' ? 0x4a7a3a : 0x9b4dff, speed: 2, life: .6 });
+    this.particles.emit(p.x, p.y + .4, p.z, 16, { color: e.kind === 'croc' ? 0x4a7a3a : e.def ? (e.def.color ?? 0xc8a070) : 0x9b4dff, speed: 2, life: .6 });
   }
 
   killEnemy(e, scoreIt = true) {
@@ -729,6 +785,8 @@ export class Game {
     }
 
     this.manageFood(dt);
+    this.tickHazard(dt);
+    if (this.state !== 'playing' && this.state !== 'demo') return;
 
     this.updateEnemies(dt);
     if (this.state !== 'playing' && this.state !== 'demo') return;
@@ -762,10 +820,34 @@ export class Game {
     }
   }
 
+  /** Standing in poison, fire or lava drains health gradually (per second, not per step). */
+  tickHazard(dt) {
+    if (this.demo || !this.hazard.length) return;
+    const h = this.body[0], def = HAZ_BY_ID[this.hazard[h.z * this.N + h.x]];
+    if (!def) { this.hazT = 0; return; }
+    if (!this.hazHint[def.id]) { this.hazHint[def.id] = true; this.say('toast', def.warn, '#ffd0a0'); }
+    this.health = Math.max(0, this.health - def.dmg * dt);
+    this.hazT -= dt;
+    if (this.hazT <= 0) {
+      this.hazT = .7;
+      this.say('flash', def.flash);
+      this.sfx.hurt();
+      this.popup(`${def.emoji} -${Math.round(def.dmg * .7)}`, h.x, h.z, '#ffb070');
+      this.shake = Math.max(this.shake, .15);
+    }
+    const p = this.head.group.position;
+    this.particles.emit(p.x, p.y + .4, p.z, 1, { colors: def.id === 1 ? [0x9aff4a, 0xd8ff90] : [0xff7a1a, 0xffc030, 0xff3d00], speed: .8, up: 2.2, gravity: 1, life: .5, size: 1.1 });
+    if (this.health <= 0) this.finish('dead');
+  }
+
   // ── Grid step ─────────────────────────────────────────────
   step() {
     const nd = this.demo ? this.aiDir() : this.input.next(this.dirName);
-    if (nd && nd !== OPP[this.dirName]) this.dirName = nd;
+    if (nd && nd !== OPP[this.dirName]) { this.dirName = nd; this.waitTurn = false; }
+    if (this.waitTurn) {                       // after a bump the snake waits for a new direction instead of hurting itself again
+      this.prev = this.body.map(p => ({ ...p })); this.t = 1;
+      return;
+    }
     const d = DIRS[this.dirName], N = this.N;
     const head = this.body[0];
     const nx = head.x + d.x, nz = head.z + d.z;
@@ -777,12 +859,9 @@ export class Game {
     if (this.grid[idx] === WATER && !this.effects.swim) return this.crash('water', nx, nz);
     if (this.grid[idx] === OBST) {
       if (fire) this.destroyObstacle(idx);
-      else return this.crash();
+      else return this.crash('rock');
     }
-    if (!ghost) {
-      const len = this.body.length - (this.grow > 0 ? 0 : 1);
-      for (let i = 1; i < len; i++) if (this.body[i].x === nx && this.body[i].z === nz) return this.demo ? this.crash() : this.selfBite(i, nx, nz);
-    }
+    if (!ghost && this.bodyAt(nx, nz)) return this.crash('self');       // the snake can't bite itself: its own body is a wall
 
     const old = this.body;
     const nb = [{ x: nx, z: nz }, ...old];
@@ -803,21 +882,26 @@ export class Game {
     this.checkPickups();
   }
 
-  /** The snake bites its own body: it hurts, loses the bitten part of its tail and some points. */
-  selfBite(i, nx, nz) {
-    const old = this.body;
-    let nb = [{ x: nx, z: nz }, ...old.slice(0, i)];
-    if (nb.length < 3) nb = [{ x: nx, z: nz }, ...old.slice(0, 2)];
-    for (let k = nb.length - 1; k < old.length; k++) { const q = this.cellPos(old[k].x, old[k].z); this.particles.emit(q.x, q.y + .4, q.z, 6, { colors: [this.skinColor(k * 2), 0xff4a4a, 0xffffff], speed: 3, up: 3, life: .7 }); }
-    this.prev = nb.map((q, k) => ({ ...(old[Math.min(k, old.length - 1)]) }));
-    this.body = nb; this.grow = 0;
-    this.stuck = 0; this.sinceMove = 0; this.combo = 0;
-    const lost = Math.min(this.score, 30); this.score -= lost;
-    this.popup('🐍 Ouch! -15  -' + lost, nx, nz, '#ff6b6b');
-    this.say('flash', 'rgba(255,40,60,.35)');
-    this.shake = Math.max(this.shake, .5);
-    this.damage(15);
-    this.invuln = Math.max(this.invuln, .8);
+  /** Is one of the snake's own segments (that will still be there after this move) on this cell? */
+  bodyAt(x, z) {
+    const len = this.body.length - (this.grow > 0 ? 0 : 1);
+    for (let i = 1; i < len; i++) if (this.body[i].x === x && this.body[i].z === z) return true;
+    return false;
+  }
+
+  /** Walls, water, rocks and its own tail all block the snake: if every way forward is blocked, it is trapped. */
+  isTrapped() {
+    if (this.effects.fire || this.effects.invisible || this.invuln > 0) return false;
+    const h = this.body[0], N = this.N;
+    for (const n of DIR_NAMES) {
+      if (n === OPP[this.dirName]) continue;
+      const x = h.x + DIRS[n].x, z = h.z + DIRS[n].z;
+      if (!this.inBounds(x, z)) continue;
+      const t = this.grid[z * N + x];
+      if ((t === WATER && !this.effects.swim) || t === OBST || this.bodyAt(x, z)) continue;
+      return false;
+    }
+    return true;
   }
 
   checkPickups() {
@@ -907,7 +991,7 @@ export class Game {
     this.removeSpecial(sp, false);
     this.particles.emit(px, py + .6, pz, 26, { colors: [F.color, 0xffffff], speed: 4, up: 3, life: .8 });
     this.shockwave(px, pz, F.color, 6);
-    const bad = k === 'mushroom' || k === 'sword' || k === 'burn' || k === 'devil';
+    const bad = k === 'mushroom' || k === 'sword' || k === 'burn' || k === 'devil' || k === 'blind';
     if (!bad) { this.addScore(15); this.popup(`${F.emoji} +15`, sp.x, sp.z, '#ffe27a'); }
     if (!this.demo) (bad ? this.sfx.poison() : this.sfx.special());
 
@@ -916,8 +1000,11 @@ export class Game {
       case 'slow': delete this.effects.fast; this.effects.slow = F.duration; break;
       case 'invisible': this.effects.invisible = F.duration; break;
       case 'magnet': this.effects.magnet = F.duration; break;
+      case 'blind': this.effects.blind = F.duration; this.say('flash', 'rgba(40,20,90,.45)'); break;
       case 'heal':
         this.health = Math.min(100, this.health + 40);
+        this.healsLeft = Math.max(0, this.healsLeft - 1); this.healNext = this.elapsed + 30;
+
         this.say('flash', 'rgba(255,90,160,.3)'); this.popup('💖 +40', sp.x, sp.z, '#ff8ab8');
         this.particles.emit(px, py + .8, pz, 20, { colors: [0xff4f8a, 0xffffff], speed: 2, up: 4, gravity: -2, life: 1 });
         break;
@@ -928,7 +1015,7 @@ export class Game {
           this.prev = b.map(q => ({ ...q }));
           const dx = Math.sign(b[0].x - b[1].x), dz = Math.sign(b[0].z - b[1].z);
           const nd = dx > 0 ? 'right' : dx < 0 ? 'left' : dz > 0 ? 'down' : dz < 0 ? 'up' : this.dirName;
-          this.dirName = nd; this.headAngle = angleOf(nd);
+          this.dirName = nd; this.headAngle = angleOf(nd); this.waitTurn = false;
           this.input.clear(); this.t = 1; this.acc = 0; this.sinceMove = 0;
           const q = this.cellPos(b[0].x, b[0].z);
           this.shockwave(q.x, q.z, 0xa14bff, 8, .8);
@@ -972,7 +1059,14 @@ export class Game {
   get canRescue() { return this.state === 'playing' && !this.demo && this.sinceMove > 5; }
 
   rescue() {
-    if (!this.canRescue || !this.cp) return false;
+    if (!this.canRescue) return false;
+    return this.restoreCheckpoint('🛟 Back at your last apple!');
+  }
+
+  /** Puts the snake back where it last ate (or at the start). Used by the rescue button and when it is trapped. */
+  restoreCheckpoint(msg) {
+    if (!this.cp) return false;
+    this.waitTurn = false;
     this.body = this.cp.body.map(p => ({ ...p }));
     this.prev = this.body.map(p => ({ ...p }));
     this.dirName = this.cp.dir; this.headAngle = angleOf(this.dirName);
@@ -983,7 +1077,7 @@ export class Game {
     this.particles.emit(p.x, p.y + .6, p.z, 36, { colors: [0xffffff, 0x7fe8ff, 0xffd400], speed: 4, up: 4, life: .9 });
     this.shockwave(p.x, p.z, 0x7fe8ff, 10, .8);
     this.sfx.special();
-    this.say('toast', '🛟 Back at your last apple!', '#7fe8ff');
+    this.say('toast', msg, '#7fe8ff');
     this.snapCamera = false;
     return true;
   }
@@ -1034,16 +1128,20 @@ export class Game {
     return true;
   }
 
-  /** Walls, trees, rocks, the river and your own tail only stop the snake. It bumps, gets dizzy and waits for a new direction. */
-  crash(kind, wx, wz) {
+  /** Walls, trees, rocks, the river and your own tail stop the snake and cost some health. It bumps, gets dizzy and waits for a new direction.
+   *  If every way is blocked, it is put back at its last meal. */
+  crash(kind = 'rock', wx, wz) {
     this.prev = this.body.map(p => ({ ...p }));
     this.t = 1;
     this.bumpT = 1;
     const h = this.body[0], p = this.cellPos(h.x, h.z);
     if (this.demo) { if (++this.stuck > 5) this.respawn(true); return; }
+    this.waitTurn = true;
     if (this.bumpCool > 0) return;
     this.bumpCool = .55;
-    const d = DIRS[this.dirName];
+    const d = DIRS[this.dirName], dmg = CRASH_DMG[kind] ?? 7;
+    this.popup(`${kind === 'self' ? '🐍' : '💥'} -${dmg}`, h.x, h.z, '#ff6b6b');
+    if (kind === 'self') this.say('toast', "🐍 You can't bite yourself! Turn away.", '#ffb3b3');
     if (kind === 'water') {
       const w = this.cellPos(wx, wz);
       this.particles.emit(w.x, WATER_Y, w.z, 16, { colors: [0xffffff, 0xbfe8ff, 0x6ac8ff], speed: 2, up: 3, life: .7, floor: WATER_Y - .1 });
@@ -1055,6 +1153,8 @@ export class Game {
       this.particles.emit(p.x - d.x * .1, p.y + .15, p.z - d.z * .1, 8, { colors: [0xd8c8a0, 0xffffff], speed: 1.4, up: .8, life: .5, size: .9 });
     }
     this.shake = Math.max(this.shake, .22);
+    if (!this.damage(dmg)) return;
+    if (this.isTrapped()) this.restoreCheckpoint('🛟 Trapped! Back to where you last ate.');
   }
 
   checkTraffic() {
@@ -1086,7 +1186,7 @@ export class Game {
     this.dirName = this.startDir;
     this.headAngle = angleOf(this.dirName);
     this.invuln = short ? 1 : 2.5;
-    this.acc = 0;
+    this.acc = 0; this.waitTurn = false;
     this.input.clear();
     this.state = this.demo ? 'demo' : 'playing';
     const p = this.cellPos(s.x, s.z);
@@ -1142,12 +1242,39 @@ export class Game {
         if (e.timer <= 0) { e.timer = e.interval * rand(.8, 1.3); this.moveEnemy(e); }
       }
       e.mt = Math.min(1, e.mt + dt / (e.interval * .7));
-      if (e.x === h.x && e.z === h.z) this.onEnemyContact(e);
+      const bite = e.def ? Math.abs(e.x - h.x) + Math.abs(e.z - h.z) <= 1 : e.x === h.x && e.z === h.z;     // den animals bite when you are right next to them
+      if (bite) this.onEnemyContact(e);
       if (this.state !== 'playing' && this.state !== 'demo') return;
     }
   }
 
+  /** Den animals patrol their own area (walking on in one direction, pausing now and then), and rush at the snake when it comes close. */
+  moveDenAnimal(e) {
+    const N = this.N, h = this.body[0], hm = e.home;
+    const inLeash = (x, z) => Math.abs(x - hm.cx) <= e.leash && Math.abs(z - hm.cz) <= e.leash;
+    const dist = (x, z) => Math.abs(x - h.x) + Math.abs(z - h.z);
+    const hunting = !this.effects.invisible && !this.effects.fire && dist(e.x, e.z) <= e.def.aggro && inLeash(h.x, h.z);
+    let names = DIR_NAMES.slice().sort(() => Math.random() - .5);
+    if (hunting && Math.random() < e.def.chase) names.sort((a, b) => dist(e.x + DIRS[a].x, e.z + DIRS[a].z) - dist(e.x + DIRS[b].x, e.z + DIRS[b].z));
+    else if (this.effects.fire) names.sort((a, b) => dist(e.x + DIRS[b].x, e.z + DIRS[b].z) - dist(e.x + DIRS[a].x, e.z + DIRS[a].z));
+    else {
+      if (Math.random() < .22) { e.timer += e.interval * rand(1.5, 3.5); return; }          // stop and look around
+      if (e.dir && Math.random() < .7) names = [e.dir, ...names.filter(n => n !== e.dir)];   // keep walking the same way
+    }
+    const bodySet = new Set(this.body.slice(1).map(p => p.z * N + p.x));
+    for (const n of names) {
+      const x = e.x + DIRS[n].x, z = e.z + DIRS[n].z, i = z * N + x;
+      if (!this.inBounds(x, z) || !inLeash(x, z) || !this.enemyCanEnter(e, i) || bodySet.has(i)) continue;
+      if (this.enemies.some(o => o !== e && o.alive && o.x === x && o.z === z)) continue;
+      e.px = e.x; e.pz = e.z; e.x = x; e.z = z; e.mt = 0; e.dir = n;
+      e.face = Math.atan2(DIRS[n].x, DIRS[n].z);
+      return;
+    }
+    e.dir = null;
+  }
+
   moveEnemy(e) {
+    if (e.home) return this.moveDenAnimal(e);
     const N = this.N, h = this.body[0];
     const names = DIR_NAMES.slice().sort(() => Math.random() - .5);
     const near = Math.abs(e.x - h.x) + Math.abs(e.z - h.z) < 14;
@@ -1176,11 +1303,11 @@ export class Game {
       this.damage(25);
       return;
     }
-    if (e.kind === 'crab') {            // a red crab's pinch (or eating it) hurts
-      this.popup('🦀 -15', e.x, e.z, '#ff6b6b');
-      this.invuln = 1.2;
-      this.killEnemy(e, false); e.respawnT = 7;
-      this.damage(15);
+    if (e.def) {                        // a bite from a den animal; it backs off for a moment, the snake is briefly safe
+      this.popup(`${e.def.emoji} -${e.def.dmg}`, e.x, e.z, '#ff6b6b');
+      this.invuln = 1.1; e.stun = 1.4;
+      this.say('flash', 'rgba(255,60,40,.3)');
+      this.damage(e.def.dmg);
       return;
     }
     this.popup('👾 -20', e.x, e.z, '#ff6b6b');
@@ -1196,7 +1323,7 @@ export class Game {
     const blocked = new Uint8Array(N * N);
     for (let i = 0; i < N * N; i++) blocked[i] = this.isBlocked(i) ? 1 : 0;
     for (let i = 0; i < this.body.length - 1; i++) blocked[this.body[i].z * N + this.body[i].x] = 1;
-    const target = this.specials.find(s => !['mushroom', 'sword', 'burn', 'devil'].includes(s.key)) || this.nearestFood();
+    const target = this.specials.find(s => !['mushroom', 'sword', 'burn', 'devil', 'blind'].includes(s.key)) || this.nearestFood();
     if (target) {
       const first = new Int8Array(N * N).fill(-1);
       const seen = new Uint8Array(N * N);
@@ -1239,6 +1366,11 @@ export class Game {
     if (!(this.effects.devil || this.effects.burn)) { this.bodyMat.emissive.set(0x000000); this.head.mat.emissive.set(0x000000); }
     this.head.crown.visible = !!this.effects.devil;
     this.magnetRing.visible = !!this.effects.magnet;
+    const blind = !!this.effects.blind;           // blind: only the ground is visible, everything else is hidden
+    this.actors.visible = !blind;
+    this.world.setBlind(blind);
+    if (this.door && this.doorOpen) this.door.group.visible = !blind;
+    if (this.ui.blind) this.ui.blind(blind);
     this.tintFoods();
   }
 
@@ -1325,7 +1457,7 @@ export class Game {
       u.shell.position.y = .5 + bob; u.shell.scale.setScalar(1 + Math.sin(T * 5) * .08);
       u.stars.rotation.y = T * 2.2; u.stars.position.y = bob;
       u.sprite.position.y = 1.5 + bob;
-      u.ring.scale.setScalar(.25 + .75 * Math.max(0, sp.life / 14));
+      u.ring.scale.setScalar(.25 + .75 * Math.max(0, sp.life / sp.max));
       if (sp.key === 'color') {
         const c = _c.setHSL((T * .4) % 1, .9, .6);
         u.shell.material.color.copy(c); u.ring.material.color.copy(c);
@@ -1351,7 +1483,14 @@ export class Game {
       u.pivot.scale.set(sxz * sp, sy * sp, sxz * sp);
       e.mesh.rotation.y = lerpAngle(e.mesh.rotation.y, e.face + (e.kind === 'crab' ? Math.PI / 2 : 0), Math.min(1, dt * 10));
       u.body.material.emissiveIntensity = this.effects.fire ? .5 + Math.sin(T * 20) * .3 : (this.theme.dark ? .6 : .18);
+      if (u.legs) {                                          // den animals: legs scuttle while walking, claws snap, tails wag
+        const walking = mt < 1 && !(e.stun > 0), w = T * (e.kind === 'spider' || e.kind === 'crab' ? 22 : 16);
+        u.legs.forEach((l, i) => { l.rotation.x = walking ? Math.sin(w + i * 1.7) * (e.kind === 'spider' ? .35 : .5) : 0; });
+        if (u.claws) u.claws.forEach((c, i) => { c.rotation.x = walking ? Math.sin(T * 9 + i * 2) * .25 : (e.stun > 0 ? Math.sin(T * 30) * .5 : 0); });
+        if (u.tail) u.tail.rotation.y = Math.sin(T * 7 + e.phase) * .35;
+      }
     }
+    for (const z of this.zones) z.update(dt, T);
 
     // the exit door rises, glows and shines a beam once it opens
     if (this.door && this.door.open) {
@@ -1599,17 +1738,13 @@ export class Game {
     } else {
       const d = DIRS[this.dirName];
       const alive = this.state === 'playing' || this.state === 'countdown';
-      const la = this.viewMode === 'top' ? 3.6 : this.viewMode === 'tilt' ? 3.2 : 2.2;
+      const la = this.viewMode === 'tilt' ? 3.2 : 2.2;
       this.lookAhead.lerp(_v.set(alive ? d.x * la : 0, 0, alive ? d.z * la : 0), 1 - Math.exp(-dt * 2));
       const lim = half - (aspect < 1 ? 3 : 5);
       look.set(clamp(hp.x + this.lookAhead.x, -lim, lim), 0, clamp(hp.z + this.lookAhead.z, -lim, lim));
       look.y = this.ground(look.x, look.z) * .7 + hp.y * .3 - .3;
       const dist = aspect < 1 ? 15.5 : 13.5;
-      if (this.viewMode === 'top') {
-        const h = aspect < 1 ? 31 : 26;
-        look.y = this.ground(look.x, look.z) * .5;
-        this.camDesired.set(look.x, look.y + h, look.z + .02);
-      } else if (this.viewMode === 'tilt') {
+      if (this.viewMode === 'tilt') {
         const td = aspect < 1 ? 19 : 16;
         this.camDesired.set(look.x, look.y + td * .5, look.z + td);
       } else if (this.viewMode === 'fps') {
@@ -1640,10 +1775,10 @@ export class Game {
     this.camera.up.set(0, 1 - kUp, -kUp).normalize();
     this.camera.lookAt(this.camLook);
     if (this.scene.fog) {                                  // keep the ground clear of fog when seen from higher up
-      const extra = Math.max(0, this.camPos.distanceTo(this.camLook) - 14);
+      const extra = Math.max(0, this.camPos.distanceTo(this.camLook) - 14) + (this.fps ? 28 : 0);   // first person: see much further
       this.scene.fog.near = this.fogNear0 + extra; this.scene.fog.far = this.fogFar0 + extra;
     }
-    const fov = (this.fps ? 84 : this.baseFov) + (this.sprinting || this.effects.fast ? 5 : 0);
+    const fov = (this.fps ? (aspect < 1 ? 104 : 94) : this.baseFov) + (this.sprinting || this.effects.fast ? 5 : 0);
     if (Math.abs(this.camera.fov - fov) > .05) {
       this.camera.fov += (fov - this.camera.fov) * Math.min(1, dt * 6);
       this.camera.updateProjectionMatrix();

@@ -1,5 +1,5 @@
 {
-  "name": "slither-3d",
+  "name": "snake-3d",
   "version": "1.0.0",
   "description": "3D snake game built with Three.js – plays in the browser on mobile and desktop",
   "private": true,

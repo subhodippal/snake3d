@@ -1,11 +1,11 @@
 // ───────────────────────────────────────────────────────────
-//  Service worker – makes Slither 3D installable and playable offline.
+//  Service worker – makes Snake 3D installable and playable offline.
 //  • Game files (same origin): network-first → always fresh when online,
 //    served from cache when offline.
 //  • CDN libraries & fonts: cache-first (they are versioned / immutable).
 //  Bump VERSION when you want to force-clear old caches.
 // ───────────────────────────────────────────────────────────
-const VERSION = 'slither3d-v16';
+const VERSION = 'snake3d-v18';
 const CORE = [
   './',
   './index.html',
@@ -20,6 +20,7 @@ const CORE = [
   './js/mapgen.js',
   './js/world.js',
   './js/animals.js',
+  './js/hazards.js',
   './manifest.webmanifest',
   './icons/icon.svg',
   './icons/icon-192.png',

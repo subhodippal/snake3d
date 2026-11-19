@@ -1,18 +1,19 @@
-# 🐍 Slither 3D
+# 🐍 Snake 3D
 
 A 3D snake game that runs in the browser. It is built with [Three.js](https://threejs.org) and plays on both **desktop and mobile**. It is a fully static site, so you can host it on **GitHub Pages** with no build step. It is also an **installable PWA** that works offline.
 
 ## Features
-- **4 camera views** (button next to Pause, or press V): classic 3D, tilted 3D, snake-eye first person (◀ ▶ turn left/right, only your tongue is visible) and a top-down 2D map.
+- **3 camera views** (button next to Pause, or press V): classic 3D, tilted 3D and snake-eye first person. First person works in **portrait and landscape**, uses a wide circular lens so you see more (and things look smaller), and the snake moves much slower in it.
 - **3 game modes**
-  - **Adventure**: 20 levels, each on its own big map (different places, times of day and weather: sunny mornings, golden sunsets, heavy rain, thunderstorms, starry nights). Bumping into trees, walls, rocks or the river no longer kills you: the snake just stops, gets dizzy, and waits for a new direction. Watch out for slimes, poison and traffic on busy roads. To clear a level you must eat a set number of 🍎 apples **and** ★ special fruits. You earn up to 3 stars per level, based on the health you have left.
+  - **Adventure**: 20 levels, each on its own big map (different places, times of day and weather: sunny mornings, golden sunsets, heavy rain, thunderstorms, starry nights). Every bump costs health (fence 5, trees and rocks 7, river 10): the snake stops, gets dizzy and waits for a new direction. **You can't bite yourself**: your own tail is a wall too, and if you are completely trapped you are put back where you last ate. Watch out for slimes, poison and traffic on busy roads. To clear a level you must eat a set number of 🍎 apples **and** ★ special fruits. You earn up to 3 stars per level, based on the health you have left.
   - **Endless**: no goal; the snake keeps speeding up. Pick any of the 20 maps.
   - **Time Attack**: 90 seconds to score as much as you can. Every apple adds 1.5 seconds.
 - **Open 3D worlds instead of a board**: every level is a large full-screen landscape with rolling hills, fenced in by a **bamboo fence**. The camera follows the snake, a red arrow and a minimap point to the next apple.
 - **Rivers and bridges**: snakes can't swim here! Rivers wind through each map, and you must cross them on wooden (or stone road) bridges. Hitting the water or the fence costs health.
 - **10 environments**: Green Meadow, Wild Jungle, Sandy Shores, Rocky Valley, Rolling Hills, Snowy Peaks (with snowfall), Country Road (sunset, street lamps, cars), Fun Playground (swings, slides, seesaws, sandpits), Torch Cave and Temple Night. The two dark levels are lit by flickering fire torches (with real lights and embers), and the temple has fireflies.
+- **Big animals**: giraffes, kangaroos, elephants, bears, dinosaurs (T-rex, triceratops, brachiosaurus) and flying dragons roam the bigger maps.
 - **Harmless wildlife**: monkeys, parrots, birds, eagles, seagulls, deer, rabbits, sheep, goats, turtles on the sand, crabs, frogs, lizards, penguins, ducks on the river, jumping fish, bats, dogs, cats, squirrels, pigeons and butterflies. They wander around and scurry away from the snake.
-- **Food system**: normal food (apple, litchi, pumpkin, orange), rare special food (pizza, cake, burger, donut: big points, maximum growth), spells (speed, slow, invisible, reverse, live, sword), gems (mushroom, devil eye, fire stone, magnet) and small animals (mouse, frog, bug, crab) that all run around from the start of the level. Every level has its own goals; finishing them opens a **hidden door** (or a burrow in the ground) that you slither through. Biting your own body hurts and cuts your tail.
+- **Food system**: normal food (apple, litchi, pumpkin, orange), rare special food (pizza, cake, burger, donut: big points, maximum growth), spells (speed, slow, invisible, reverse, live, blind, sword), gems (mushroom, devil eye, fire stone, magnet) and small animals (mouse, frog, bug, crab) that all run around from the start of the level. Every level has its own goals; finishing them opens a **hidden door** (or a burrow in the ground) that you slither through. Poison pools, camp fires and lava drain health every second you stand in them, and each level has a den of biting animals (crabs, wolves, boars, scorpions, spiders, stray dogs) that guard their own area.
 - **15 special-food effects**
 
   | Fruit | Effect |
@@ -26,7 +27,7 @@ A 3D snake game that runs in the browser. It is built with [Three.js](https://th
   | 🧲 Magnet | pulls nearby fruit to you |
   | ☠️ Poison | damages your health |
   | 🎨 Color Swap | new snake skin and bonus points |
-- **Health system**: crashing costs 30 ❤, a slime enemy costs 20 and poison costs 20.
+- **Health system**: bumps cost 4-10 ❤, slimes 20, crocodiles 25, den animals 8-15, cars 25, and poison, fire and lava drain health every second you stay in them.
 - **Animations**: smooth movement with interpolation, a slithering body, a tongue that flicks, blinking eyes, a swallow bulge that travels down the body, hopping slime enemies, particles, shockwaves and screen shake.
 - Sound effects are synthesized with WebAudio, so the game needs no audio files. Progress is saved in `localStorage`.
 
@@ -60,7 +61,7 @@ To play on your phone, open the **Phone** address in the phone's browser. If the
 > The game uses ES modules, so it has to be served over HTTP. Opening `index.html` directly with `file://` won't work. Any static server also works, for example `python3 -m http.server 8000`.
 
 ## 📲 Install as an app (PWA)
-Slither 3D is a **Progressive Web App**: you can install it like a native app, and it **works offline**.
+Snake 3D is a **Progressive Web App**: you can install it like a native app, and it **works offline**.
 
 - **Android / Chrome / Edge (desktop or mobile):** tap **📲 Install app** on the main menu, or use the browser menu → *Install app*.
 - **iPhone / iPad (Safari):** tap **Share ⬆️ → Add to Home Screen**. The Install button on the menu shows this hint.

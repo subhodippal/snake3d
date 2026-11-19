@@ -989,18 +989,110 @@ export function makeCroc() {
   return g;
 }
 
-/** Red crab: flat shell, two big claws, eye stalks, legs. Walks sideways (the game rotates it). */
+/** Red crab: flat shell, two big claws, eye stalks, legs. Walks sideways (the game rotates it). Legs and claws are animated. */
 export function makeCrab() {
   const g = new THREE.Group(), pivot = new THREE.Group(); g.add(pivot);
   const red = fmat(0xe8281e, { roughness: .4, emissive: 0xe8281e, emissiveIntensity: .12 });
   const mk = (geo, mat, pos, scl = [1, 1, 1], rot = null) => { const m = new THREE.Mesh(geo, mat); m.position.set(...pos); m.scale.set(...scl); if (rot) m.rotation.set(...rot); m.castShadow = true; pivot.add(m); return m; };
   const body = mk(Sph(.34, 16, 10), red, [0, .22, 0], [1.3, .55, 1]);
+  const legs = [], claws = [];
   for (const sx of [-1, 1]) {
-    mk(Sph(.16, 10, 8), red, [sx * .5, .3, .3], [1, .8, 1.1]); mk(Cone(.08, .2, 5), red, [sx * .56, .32, .5], [1, 1, 1], [Math.PI / 2, 0, 0]);
+    const claw = new THREE.Group(); claw.position.set(sx * .5, .3, .3); pivot.add(claw);
+    const palm = new THREE.Mesh(Sph(.16, 10, 8), red); palm.scale.set(1, .8, 1.1); palm.castShadow = true; claw.add(palm);
+    const tip = new THREE.Mesh(Cone(.08, .2, 5), red); tip.position.set(sx * .06, .02, .2); tip.rotation.x = Math.PI / 2; tip.castShadow = true; claw.add(tip);
+    claws.push(claw);
     mk(Cyl(.02, .02, .16, 5), red, [sx * .13, .46, .22]); mk(Sph(.055, 8, 6), fmat(0xffffff), [sx * .13, .56, .22]); mk(Sph(.025, 6, 5), fmat(0x111111), [sx * .13, .57, .26]);
-    for (let k = 0; k < 3; k++) mk(Cyl(.018, .014, .3, 5), red, [sx * .38, .1, -.1 + k * .15], [1, 1, 1], [0, 0, sx * 1.1]);
+    for (let k = 0; k < 3; k++) legs.push(mk(Cyl(.018, .014, .3, 5), red, [sx * .38, .1, -.1 + k * .15], [1, 1, 1], [0, 0, sx * 1.1]));
   }
-  g.userData = { pivot, body };
+  g.userData = { pivot, body, legs, claws };
+  return g;
+}
+
+/** Wolf / stray dog: lean body, long snout, pointed ears, tail. Faces +z. */
+export function makeWolf(coat = 0x7a7f8a, belly = 0xc8ccd4) {
+  const g = new THREE.Group(), pivot = new THREE.Group(); g.add(pivot);
+  const fur = fmat(coat, { roughness: .8, emissive: coat, emissiveIntensity: .06 }), pale = fmat(belly, { roughness: .8 });
+  const mk = (geo, mat, pos, scl = [1, 1, 1], rot = null) => { const m = new THREE.Mesh(geo, mat); m.position.set(...pos); m.scale.set(...scl); if (rot) m.rotation.set(...rot); m.castShadow = true; pivot.add(m); return m; };
+  const body = mk(Sph(.3, 12, 9), fur, [0, .46, -.05], [.8, .85, 1.7]);
+  mk(Sph(.22, 10, 8), pale, [0, .38, .05], [.8, .6, 1.3]);
+  mk(Sph(.2, 10, 8), fur, [0, .58, .5], [.9, .9, 1]);
+  mk(Sph(.11, 8, 6), fur, [0, .52, .7], [.8, .7, 1.5]);
+  mk(Sph(.04, 6, 5), fmat(0x111111), [0, .55, .86]);
+  for (const s of [-1, 1]) {
+    mk(Cone(.06, .16, 4), fur, [s * .1, .78, .45], [1, 1, .6], [0, 0, s * -.15]);
+    mk(Sph(.035, 6, 5), fmat(0xffd23a, { emissive: 0xff8a00, emissiveIntensity: .6 }), [s * .09, .62, .62]);
+    mk(Cone(.018, .06, 4), fmat(0xffffff), [s * .05, .44, .74], [1, 1, 1], [Math.PI, 0, 0]);
+  }
+  const legs = [];
+  for (const [sx, sz] of [[-1, 1], [1, 1], [-1, -1], [1, -1]]) legs.push(mk(Cyl(.05, .035, .38, 5), fur, [sx * .15, .2, sz * .3]));
+  const tail = mk(Cone(.07, .42, 5), fur, [0, .56, -.55], [1, 1, 1], [-1.9, 0, 0]);
+  g.userData = { pivot, body, legs, tail };
+  return g;
+}
+
+/** Wild boar: stocky body, tusks, bristly back. */
+export function makeBoar() {
+  const g = new THREE.Group(), pivot = new THREE.Group(); g.add(pivot);
+  const fur = fmat(0x5a4332, { roughness: .9, emissive: 0x5a4332, emissiveIntensity: .06 }), snout = fmat(0xc89a8a);
+  const mk = (geo, mat, pos, scl = [1, 1, 1], rot = null) => { const m = new THREE.Mesh(geo, mat); m.position.set(...pos); m.scale.set(...scl); if (rot) m.rotation.set(...rot); m.castShadow = true; pivot.add(m); return m; };
+  const body = mk(Sph(.38, 12, 9), fur, [0, .44, 0], [.85, .85, 1.45]);
+  mk(Sph(.27, 10, 8), fur, [0, .5, .46], [.95, .95, 1]);
+  mk(Cyl(.1, .13, .22, 8), snout, [0, .42, .72], [1, 1, 1], [Math.PI / 2, 0, 0]);
+  for (const s of [-1, 1]) {
+    mk(Cone(.04, .2, 5), fmat(0xf4efdc), [s * .1, .38, .74], [1, 1, 1], [-.5, 0, s * -.5]);
+    mk(Sph(.035, 6, 5), fmat(0x111111), [s * .13, .6, .62]);
+    mk(Cone(.06, .14, 4), fur, [s * .17, .76, .38], [1, 1, .6], [0, 0, s * -.3]);
+  }
+  for (let i = 0; i < 6; i++) mk(Cone(.04, .12, 4), fmat(0x2a1e14), [0, .84 - Math.abs(i - 2.5) * .02, .3 - i * .13]);
+  const legs = [];
+  for (const [sx, sz] of [[-1, 1], [1, 1], [-1, -1], [1, -1]]) legs.push(mk(Cyl(.06, .05, .28, 5), fur, [sx * .2, .14, sz * .3]));
+  const tail = mk(Cyl(.015, .015, .2, 4), fur, [0, .56, -.56], [1, 1, 1], [-.9, 0, 0]);
+  g.userData = { pivot, body, legs, tail };
+  return g;
+}
+
+/** Scorpion: tan body, two pincers, curled stinger tail. */
+export function makeScorpion() {
+  const g = new THREE.Group(), pivot = new THREE.Group(); g.add(pivot);
+  const sh = fmat(0xb8742a, { roughness: .5, emissive: 0xb8742a, emissiveIntensity: .1 }), dk = fmat(0x6a3a14, { roughness: .5 });
+  const mk = (geo, mat, pos, scl = [1, 1, 1], rot = null) => { const m = new THREE.Mesh(geo, mat); m.position.set(...pos); m.scale.set(...scl); if (rot) m.rotation.set(...rot); m.castShadow = true; pivot.add(m); return m; };
+  const body = mk(Sph(.26, 12, 8), sh, [0, .2, 0], [.9, .5, 1.4]);
+  const claws = [];
+  for (const s of [-1, 1]) {
+    mk(Cyl(.03, .03, .3, 5), sh, [s * .2, .2, .35], [1, 1, 1], [Math.PI / 2, 0, s * .5]);
+    const claw = new THREE.Group(); claw.position.set(s * .3, .2, .56); pivot.add(claw);
+    const a = new THREE.Mesh(Sph(.1, 8, 6), dk); a.scale.set(1, .6, 1.5); a.castShadow = true; claw.add(a);
+    const b = new THREE.Mesh(Cone(.05, .16, 4), dk); b.position.set(0, 0, .16); b.rotation.x = Math.PI / 2; claw.add(b);
+    claws.push(claw);
+    mk(Sph(.03, 6, 5), fmat(0x111111), [s * .08, .3, .3]);
+  }
+  const legs = [];
+  for (const s of [-1, 1]) for (let k = 0; k < 4; k++) legs.push(mk(Cyl(.015, .012, .3, 4), dk, [s * .26, .09, .2 - k * .14], [1, 1, 1], [0, 0, s * 1.1]));
+  const tail = new THREE.Group(); tail.position.set(0, .22, -.32); pivot.add(tail);
+  const seg = (y, z, r) => { const m = new THREE.Mesh(Sph(r, 8, 6), sh); m.position.set(0, y, z); m.castShadow = true; tail.add(m); };
+  seg(.06, -.1, .11); seg(.2, -.18, .1); seg(.36, -.14, .09); seg(.48, -.02, .08);
+  const sting = new THREE.Mesh(Cone(.05, .16, 5), fmat(0x2a1408)); sting.position.set(0, .52, .12); sting.rotation.x = 1.1; tail.add(sting);
+  g.userData = { pivot, body, legs, claws, tail };
+  return g;
+}
+
+/** Big dark spider with eight legs and glowing eyes. */
+export function makeSpider() {
+  const g = new THREE.Group(), pivot = new THREE.Group(); g.add(pivot);
+  const sk = fmat(0x2a2030, { roughness: .45, emissive: 0x3a1a5a, emissiveIntensity: .25 });
+  const mk = (geo, mat, pos, scl = [1, 1, 1], rot = null) => { const m = new THREE.Mesh(geo, mat); m.position.set(...pos); m.scale.set(...scl); if (rot) m.rotation.set(...rot); m.castShadow = true; pivot.add(m); return m; };
+  const body = mk(Sph(.26, 12, 9), sk, [0, .3, -.2], [1, .85, 1.3]);
+  mk(Sph(.17, 10, 8), sk, [0, .32, .16]);
+  mk(Sph(.09, 8, 6), fmat(0xa01818, { emissive: 0x801010, emissiveIntensity: .8 }), [0, .38, -.3], [1, .5, 1]);
+  for (const s of [-1, 1]) for (let r = 0; r < 2; r++) mk(Sph(.035, 6, 5), fmat(0xff4a4a, { emissive: 0xff0000, emissiveIntensity: .9 }), [s * (.05 + r * .05), .38 + r * .02, .29]);
+  const legs = [];
+  for (const s of [-1, 1]) for (let k = 0; k < 4; k++) {
+    const l = new THREE.Group(); l.position.set(s * .15, .3, .2 - k * .13); pivot.add(l);
+    const a = new THREE.Mesh(Cyl(.022, .018, .42, 5), sk); a.position.set(s * .2, .1, 0); a.rotation.z = s * -.9; a.castShadow = true; l.add(a);
+    const b = new THREE.Mesh(Cyl(.016, .01, .36, 5), sk); b.position.set(s * .4, -.06, 0); b.rotation.z = s * .5; b.castShadow = true; l.add(b);
+    legs.push(l);
+  }
+  g.userData = { pivot, body, legs };
   return g;
 }
 

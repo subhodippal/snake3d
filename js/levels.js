@@ -8,7 +8,8 @@ export const FRUITS = {
   slow:      { name: 'Slow Spell',    emoji: '🐢', color: 0x3aa0ff, duration: 7, kind: 'spell', desc: 'Run slower: easier to steer.' },
   invisible: { name: 'Invisible Spell', emoji: '👻', color: 0xbfefff, duration: 8, kind: 'spell', desc: 'Your body vanishes, only your head stays visible. Enemies can’t hurt you.' },
   reverse:   { name: 'Reverse Spell', emoji: '🔄', color: 0xa14bff, duration: 0, kind: 'spell', desc: 'Your tail becomes your head and your head becomes your tail!' },
-  heal:      { name: 'Live Spell',    emoji: '💖', color: 0xff4f8a, duration: 0, kind: 'spell', desc: 'Restores 40 health.' },
+  heal:      { name: 'Live Spell',    emoji: '💖', color: 0xff4f8a, duration: 0, kind: 'spell', desc: 'Restores 40 health. Only 1 or 2 appear in each level!' },
+  blind:     { name: 'Blind Spell',   emoji: '🕶️', color: 0x6a5acd, duration: 8, kind: 'spell', desc: 'Only the ground stays visible: obstacles, enemies and food vanish from sight for a while. Remember where they were!' },
   sword:     { name: 'Sword Spell',   emoji: '⚔️', color: 0xc8d0e0, duration: 0, kind: 'spell', desc: 'Careful! Half your health, half your length and half your points.' },
   mushroom:  { name: 'Mushroom',      emoji: '🍄', color: 0xff6fb5, duration: 0, kind: 'gem', desc: 'Damages your health.', damage: 20 },
   devil:     { name: 'Devil Eye',     emoji: '👁️', color: 0xff2a1a, duration: 14, kind: 'gem', desc: 'Devil mode: flames burn on your face and normal food turns poisonous. It hurts, but gives double growth and points.' },
@@ -17,7 +18,7 @@ export const FRUITS = {
 };
 // which 3D item each spell / gem uses
 export const POTION_MODEL = {
-  fast: 'flask', slow: 'flask', invisible: 'flask', reverse: 'flask', heal: 'flask', sword: 'sword',
+  fast: 'flask', slow: 'flask', invisible: 'flask', reverse: 'flask', heal: 'flask', blind: 'flask', sword: 'sword',
   mushroom: 'mushroom', devil: 'devileye', burn: 'firestone', magnet: 'magnet',
 };
 export const ALL_FRUITS = Object.keys(FRUITS);
@@ -275,8 +276,24 @@ for (const T of THEMES) {
   if (o.length) T.obstacles = o;
 }
 const BIG_ANIMALS = {
-  meadow: [['elephant', 1]], jungle: [['elephant', 2], ['giraffe', 1]], hills: [['bear', 1]], rocky: [['bear', 1]], canyon: [['giraffe', 1], ['elephant', 1]],
-  farm: [['elephant', 1]], island: [['elephant', 1]], temple: [['elephant', 1]], alps: [['bear', 1]], autumn: [['bear', 1]], swamp: [['elephant', 1]], shore: [['elephant', 1]],
+  meadow: [['giraffe', 1], ['kangaroo', 2]], jungle: [['elephant', 2], ['giraffe', 1], ['trex', 1]], hills: [['bear', 1], ['triceratops', 1]], rocky: [['bear', 1], ['dragon', 1]],
+  canyon: [['giraffe', 1], ['kangaroo', 3], ['dragon', 1]], farm: [['elephant', 1], ['kangaroo', 2]], island: [['brachio', 1], ['triceratops', 1]], temple: [['elephant', 1], ['dragon', 2]],
+  alps: [['bear', 1], ['dragon', 1]], autumn: [['bear', 1], ['kangaroo', 1]], swamp: [['elephant', 1], ['brachio', 1]], shore: [['elephant', 1], ['kangaroo', 1]],
+  snow: [['bear', 1]], cave: [['dragon', 1]], playground: [['kangaroo', 1]], village: [['giraffe', 1]], road: [['kangaroo', 1]],
+};
+// Danger zones: dens of animals that stay in their own area and bite you if you wander in. [kind, members]
+export const DENS = {
+  meadow: [['boar', 2]], jungle: [['boar', 2], ['spider', 2]], shore: [['crab', 3]], rocky: [['scorpion', 2], ['wolf', 2]], hills: [['wolf', 2]],
+  snow: [['wolf', 3]], road: [['dog', 2]], playground: [['crab', 3]], village: [['dog', 2]], cave: [['spider', 3], ['scorpion', 2]], farm: [['boar', 2]],
+  canyon: [['scorpion', 3]], autumn: [['boar', 2], ['wolf', 2]], city: [['dog', 3]], swamp: [['crab', 3], ['spider', 2]], highway: [['dog', 2]],
+  temple: [['spider', 3]], alps: [['wolf', 3]], island: [['crab', 3], ['scorpion', 2]],
+};
+// Burning and poisonous ground: [kind, areas]. Standing in it drains health every second.
+export const HAZARDS = {
+  meadow: [['fire', 1]], jungle: [['poison', 2], ['fire', 1]], shore: [['fire', 1]], rocky: [['lava', 1]], hills: [['poison', 1]],
+  snow: [['fire', 1]], road: [['poison', 1]], playground: [['fire', 1]], village: [['fire', 1]], cave: [['lava', 2]], farm: [['poison', 1]],
+  canyon: [['lava', 2]], autumn: [['fire', 2]], city: [['poison', 1]], swamp: [['poison', 3], ['fire', 1]], highway: [['fire', 1]],
+  temple: [['fire', 2], ['lava', 1]], alps: [['fire', 1]], island: [['lava', 1], ['fire', 1]],
 };
 const CROCS = { jungle: 2, swamp: 3, island: 2, meadow: 1, farm: 1, autumn: 1, shore: 1, canyon: 1, village: 1, hills: 1 };
 const CRABS = {};      // crabs are now small animals you can eat (they bite if you pass close)
@@ -326,7 +343,7 @@ export function themeFor(L) {
 
 // ── Potions ────────────────────────────────────────────────────────────────────
 // ordered by when they are introduced (two in level 1, one more with each level)
-const ORDER = ['fast', 'heal', 'slow', 'magnet', 'invisible', 'mushroom', 'reverse', 'sword', 'burn', 'devil'];
+const ORDER = ['fast', 'heal', 'slow', 'magnet', 'invisible', 'mushroom', 'blind', 'reverse', 'sword', 'burn', 'devil'];
 const fruitsFor = i => ORDER.slice(0, Math.min(ORDER.length, 2 + i));
 
 // what each level asks for: any mix of fruit, special foods and runaway critters (all must be done)

@@ -95,6 +95,82 @@ const B = {
     color: 0x7a5232, belly: 0x8a6240, h: .5, bodyScale: [.5, .5, .74], headR: .17, headUp: .14, ears: 'round', earColor: 0x6a4424, snout: 0xc8a070,
     legLen: .36, legR: .09, tail: { geo: sph(.06, 6, 4), pos: [0, .02, 0], scale: [1, 1, 1] },
   }),
+  kangaroo: () => {
+    const g = new THREE.Group(), body = new THREE.Group(); g.add(body);
+    const fur = 0xc8844a, light = 0xe8c898;
+    add(body, sph(.3, 12, 9), fur, [0, .62, -.02], [.8, 1.25, .85], [.35, 0, 0]);
+    add(body, sph(.22, 10, 7), light, [0, .58, .1], [.8, 1.1, .5], [.35, 0, 0]);
+    const head = new THREE.Group(); head.position.set(0, 1.08, .2); body.add(head);
+    add(head, sph(.12, 10, 8), fur, [0, 0, 0], [.9, 1, 1.1]);
+    add(head, sph(.08, 8, 6), light, [0, -.04, .1], [.9, .8, 1.2]);
+    add(head, sph(.025, 6, 4), 0x2a1a1a, [0, -.02, .19], [1, .8, 1], [0, 0, 0], false);
+    eyes(head, .06, .04, .09, .02);
+    const ears = [];
+    for (const s of [-1, 1]) ears.push(add(head, sph(.05, 6, 4), fur, [s * .07, .2, -.02], [.5, 2.6, .5], [0, 0, s * -.15]));
+    for (const s of [-1, 1]) add(body, cyl(.025, .02, .2, 4), fur, [s * .13, .72, .3], [1, 1, 1], [.9, 0, 0]);       // little arms
+    const legs = [leg(body, -.14, .4, -.02, .4, .07, fur), leg(body, .14, .4, -.02, .4, .07, fur)];
+    for (const s of [-1, 1]) add(legs[s < 0 ? 0 : 1], box(.08, .04, .28), light, [0, -.4, .09], [1, 1, 1], [0, 0, 0], true);
+    const tail = new THREE.Group(); tail.position.set(0, .35, -.28); body.add(tail);
+    add(tail, cone(.12, .8, 6), fur, [0, -.1, -.3], [1, 1, 1], [-1.35, 0, 0]);
+    return { group: g, body, head, legs, ears, tail };
+  },
+  trex: () => {
+    const g = new THREE.Group(), body = new THREE.Group(); g.add(body);
+    const c = 0x5a8a3a, belly = 0xd0d89a;
+    add(body, sph(.42, 12, 9), c, [0, .95, 0], [.85, 1.05, 1.5], [-.15, 0, 0]);
+    add(body, sph(.34, 10, 7), belly, [0, .85, .1], [.7, .9, 1.3]);
+    const head = new THREE.Group(); head.position.set(0, 1.55, .62); body.add(head);
+    add(head, sph(.26, 10, 8), c, [0, 0, .1], [.85, .9, 1.5]);
+    add(head, box(.3, .1, .4), c, [0, -.14, .38]);
+    for (const s of [-1, 1]) for (let i = 0; i < 4; i++) add(head, cone(.018, .06, 4), 0xffffff, [s * .1, -.08, .22 + i * .08], [1, 1, 1], [PI, 0, 0], false);
+    eyes(head, .13, .12, .22, .035);
+    add(body, cyl(.15, .24, .5, 8), c, [0, 1.2, .38], [1, 1, 1], [.5, 0, 0]);
+    for (const s of [-1, 1]) add(body, cyl(.03, .025, .24, 4), c, [s * .22, 1.0, .5], [1, 1, 1], [.9, 0, s * .2]);   // tiny arms
+    const legs = [leg(body, -.25, .8, 0, .8, .12, c), leg(body, .25, .8, 0, .8, .12, c)];
+    for (const l of legs) add(l, box(.2, .06, .34), 0x3a5a28, [0, -.8, .08]);
+    const tail = new THREE.Group(); tail.position.set(0, 1.0, -.55); body.add(tail);
+    add(tail, cone(.3, 1.6, 7), c, [0, -.05, -.75], [1, 1, 1], [-PI / 2 - .12, 0, 0]);
+    for (let i = 0; i < 5; i++) add(body, cone(.05, .12, 4), 0x3a5a28, [0, 1.42 - i * .06, .15 - i * .22], [1, 1, 1]);
+    return { group: g, body, head, legs, ears: [], tail };
+  },
+  triceratops: () => {
+    const a = quad({ color: 0x7a9a5a, belly: 0xc8d49a, h: .5, bodyScale: [.62, .56, 1.0], headR: .24, headUp: .0, snout: 0xc8b878, legLen: .42, legR: .11,
+      tail: { geo: cone(.12, .6, 6), pos: [0, -.05, -.25], scale: [1, 1, 1], rot: [-1.4, 0, 0] } });
+    add(a.head, cyl(.4, .4, .05, 14), 0xb86a4a, [0, .18, -.14], [1, 1, 1], [-.55, 0, 0]);                              // frill
+    add(a.head, cone(.05, .42, 6), 0xf4f0d8, [0, .1, .34], [1, 1, 1], [1.2, 0, 0]);
+    for (const s of [-1, 1]) add(a.head, cone(.04, .44, 6), 0xf4f0d8, [s * .15, .22, .2], [1, 1, 1], [.75, 0, s * .12]);
+    return a;
+  },
+  brachio: () => {
+    const a = quad({ color: 0x8a9a6a, belly: 0xd0d4a0, h: .75, bodyScale: [.66, .6, 1.2], headR: .13, headUp: 1.55, legLen: .6, legR: .12,
+      tail: { geo: cone(.14, 1.1, 6), pos: [0, -.1, -.5], scale: [1, 1, 1], rot: [-1.45, 0, 0] } });
+    add(a.body, cyl(.1, .2, 1.6, 8), 0x8a9a6a, [0, 1.5, .62], [1, 1, 1], [.25, 0, 0]);
+    for (let i = 0; i < 6; i++) add(a.body, sph(.07, 6, 5), 0x5a6a42, [Math.cos(i * 2.1) * .22, .98 + (i % 3) * .08, Math.sin(i * 1.4) * .4], [1, .5, 1]);
+    return a;
+  },
+  dragon: () => {
+    const g = new THREE.Group(), body = new THREE.Group(); g.add(body);
+    const red = 0xb8281e, dark = 0x6a1410, gold = 0xffc030;
+    add(body, sph(.22, 10, 8), red, [0, 0, 0], [.9, .85, 1.8]);
+    add(body, sph(.17, 8, 6), gold, [0, -.06, .03], [.8, .6, 1.5]);
+    const neck = add(body, cyl(.07, .11, .4, 7), red, [0, .1, .36], [1, 1, 1], [1.1, 0, 0]);
+    const head = new THREE.Group(); head.position.set(0, .26, .56); body.add(head);
+    add(head, sph(.1, 9, 7), red, [0, 0, .02], [.9, .85, 1.35]);
+    add(head, box(.09, .05, .14), red, [0, -.04, .17]);
+    for (const s of [-1, 1]) { add(head, cone(.02, .18, 5), gold, [s * .06, .1, -.05], [1, 1, 1], [-.9, 0, s * .2]); eyes(head, .055, .035, .08, .02); }
+    for (let i = 0; i < 6; i++) add(body, cone(.03, .08, 4), gold, [0, .2 - i * .015, .3 - i * .12], [1, 1, 1]);
+    add(body, cone(.12, 1.1, 6), red, [0, -.02, -.8], [1, 1, 1], [-PI / 2, 0, 0]);
+    add(body, cone(.06, .14, 4), gold, [0, 0, -1.4], [1, .4, 1], [-PI / 2, 0, 0]);
+    const wings = [];
+    for (const s of [-1, 1]) {
+      const w = new THREE.Group(); w.position.set(s * .14, .1, .05); body.add(w);
+      add(w, cyl(.02, .02, .9, 5), dark, [s * .45, 0, 0], [1, 1, 1], [0, 0, PI / 2]);
+      add(w, box(.9, .012, .5), dark, [s * .45, 0, -.18], [1, 1, 1], [0, s * -.15, 0]);
+      add(w, box(.45, .012, .38), red, [s * .9, 0, -.1], [1, 1, 1], [0, s * -.3, 0]);
+      wings.push(w);
+    }
+    return { group: g, body, head, wings, legs: [], ears: [] };
+  },
   deer: () => quad({
     color: 0xb0703a, belly: 0xf0e0c8, h: .72, bodyScale: [.36, .38, .8], headR: .12, headUp: .32, ears: 'point', snout: 0x3a2a1a,
     legLen: .62, legR: .032, antlers: Math.random() < .5 ? 0xd8c8a0 : null, tail: { geo: sph(.05, 6, 4), color: 0xffffff, pos: [0, .05, 0], scale: [1, 1.4, 1] },
@@ -288,6 +364,11 @@ const KINDS = {
   elephant: { build: B.elephant, move: 'walk', speed: .75, rate: 5, flee: 4.5, scale: 2.3, idle: [3, 8] },
   giraffe: { build: B.giraffe, move: 'walk', speed: 1.0, rate: 6, flee: 4, scale: 1.9, idle: [3, 7] },
   bear: { build: B.bear, move: 'walk', speed: 1.1, rate: 7, flee: 3.5, scale: 1.6, idle: [2, 6] },
+  kangaroo: { build: B.kangaroo, move: 'hop', speed: 2.2, hop: .8, rate: 7, flee: 4.5, scale: 1.7, idle: [2, 6] },
+  trex: { build: B.trex, move: 'walk', speed: .9, rate: 4.5, flee: 3, scale: 2.6, idle: [3, 8] },
+  triceratops: { build: B.triceratops, move: 'walk', speed: .7, rate: 5, flee: 3, scale: 2.2, idle: [3, 8] },
+  brachio: { build: B.brachio, move: 'walk', speed: .55, rate: 3.5, flee: 3, scale: 2.8, idle: [3, 9] },
+  dragon: { build: B.dragon, move: 'fly', h: [9, 13], r: [10, 16], w: .16, scale: 4.2, glide: true },
   rabbit: { build: () => B.rabbit(false), move: 'hop', speed: 2.6, hop: .32, rate: 7 },
   whiteRabbit: { build: () => B.rabbit(true), move: 'hop', speed: 2.6, hop: .32, rate: 7 },
   deer: { build: B.deer, move: 'walk', speed: 1.6, rate: 6, flee: 4 },

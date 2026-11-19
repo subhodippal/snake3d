@@ -57,6 +57,7 @@ const ui = {
     const el = $('#atmos');
     if (el) el.dataset.mood = mood || 'noon';
   },
+  blind(on) { document.body.classList.toggle('blind', !!on); },
   onEnd(res) { showResult(res); },
 };
 
@@ -116,6 +117,7 @@ function showIntro(cfg) {
       <p class="mood">${T.moodLabel}</p>
       <p class="tip">${themeTip(T)}</p>
       ${L.enemies ? `<p>👾 Watch out for ${L.enemies} slime${L.enemies > 1 ? 's' : ''}!</p>` : ''}
+      ${dangers(game) ? `<p class="tip">⚠️ ${dangers(game)}</p>` : ''}
       ${fresh.length ? `<div class="new">New: ${fresh.map(f => `${FRUITS[f].emoji} ${FRUITS[f].name}`).join(' · ')}</div>` : ''}`;
   } else {
     const T = themeFor(LEVELS[cfg.map]);
@@ -129,6 +131,9 @@ function showIntro(cfg) {
   el.innerHTML = html + `<div class="hint">${hint}</div>`;
   el.classList.remove('hidden');
 }
+
+/** The biting animals and burning/poisonous ground of the level that was just loaded. */
+const dangers = g => g.dangerSummary().join(' · ');
 
 function goalText(g) {
   const parts = [];
@@ -146,7 +151,7 @@ function themeTip(T) {
   else if (T.roads) tips.push('🛣️ Roads are safe');
   if (T.hills && T.hills.amp >= 2.4) tips.push('⛰️ Hills and slopes ahead');
   if (T.lightning) tips.push('⚡ Lightning storm');
-  tips.push('🌳 Bumping into things only stops you');
+  tips.push('💥 Every bump costs health');
   return tips.slice(0, 3).join(' · ');
 }
 
@@ -193,7 +198,6 @@ function updateRotateHint() {
   const want = save.orient, mismatch = coarse && want !== 'auto' && (want === 'portrait') !== isPortrait();
   $('#rotate').classList.toggle('hidden', !mismatch);
   if (mismatch) $('#rotate-text').textContent = want === 'landscape' ? 'Rotate your phone sideways' : 'Hold your phone upright';
-  checkFpsAllowed();
 }
 async function applyOrientation(userGesture = false) {
   const o = screen.orientation;
@@ -302,9 +306,9 @@ function doPause() {
 }
 $('#btn-pause').addEventListener('click', () => { sfx.click(); doPause(); });
 
-// Four views: classic 3D · tilted 3D · snake-eye (first person) · top-down 2D
-const VIEW_ORDER = ['3d', 'tilt', 'fps', 'top'];
-const VIEW_LABEL = { '3d': ['🎥', '3D'], tilt: ['📐', 'TILT'], fps: ['👁️', 'FPS'], top: ['🗺️', '2D'] };
+// Three views: classic 3D · tilted 3D · snake-eye (first person, works in portrait and landscape)
+const VIEW_ORDER = ['3d', 'tilt', 'fps'];
+const VIEW_LABEL = { '3d': ['🎥', '3D'], tilt: ['📐', 'TILT'], fps: ['👁️', 'FPS'] };
 function syncEye() { $('#fps-eye').classList.toggle('on', inGame && game.fps); }
 function syncViewBtn() {
   syncEye();
@@ -313,12 +317,11 @@ function syncViewBtn() {
   $('#view-txt').textContent = txt;
 }
 function toggleView() {
-  const order = Game.fpsAllowed() ? VIEW_ORDER : VIEW_ORDER.filter(v => v !== 'fps');     // no first person on a portrait phone
+  const order = VIEW_ORDER;
   game.setView(order[(Math.max(0, order.indexOf(game.viewMode)) + 1) % order.length]);
   save.view = game.viewMode; persist(); syncViewBtn(); sfx.click();
   if (game.viewMode === 'fps') ui.toast('👁️ Snake-eye view · ◀ ▶ turn left / right', '#bfe8ff');
   else if (game.viewMode === 'tilt') ui.toast('📐 Tilted 3D view', '#bfe8ff');
-  else if (game.viewMode === 'top') ui.toast('🗺️ Top-down 2D view', '#bfe8ff');
   else ui.toast('🎥 Classic 3D view', '#bfe8ff');
 }
 $('#btn-view').addEventListener('click', toggleView);
@@ -326,10 +329,6 @@ $('#btn-rescue').addEventListener('click', () => game.rescue());
 addEventListener('keydown', e => { if (e.code === 'KeyR' && inGame && !e.repeat) game.rescue(); });
 addEventListener('keydown', e => { if (e.code === 'KeyV' && inGame && !e.repeat) toggleView(); });
 game.setView(save.view); syncViewBtn();
-function checkFpsAllowed() {
-  if (game.viewMode === 'fps' && !Game.fpsAllowed()) { game.setView('3d'); save.view = '3d'; persist(); ui.toast('👁️ First-person needs landscape or a computer', '#bfe8ff'); }
-  syncViewBtn();
-}
 input.onPause = doPause;
 document.addEventListener('visibilitychange', () => { if (document.hidden && inGame && game.state !== 'paused') { if (game.pause()) show('pause'); } });
 addEventListener('pointerdown', () => sfx.unlock(), { passive: true });
@@ -378,8 +377,7 @@ async function installApp() {
 
 // ── HUD ─────────────────────────────────────────────────────
 let hudCache = {};
-let effectsT = 0, minimapT = 0;
-const mmCanvas = $('#minimap'), mmCtx = mmCanvas.getContext('2d');
+let effectsT = 0;
 function setText(id, txt) { if (hudCache[id] !== txt) { hudCache[id] = txt; $(id).textContent = txt; } }
 
 function updateHud(dt) {
@@ -399,9 +397,9 @@ function updateHud(dt) {
   if (s.combo >= 2) setText('#hud-combo', `🔥 ×${s.comboMul}`);
   const prog = $('#hud-prog'), G = s.goals;
   prog.classList.toggle('hidden', !G);
-  $('#hud-door').classList.toggle('hidden', !s.doorOpen);
-  const goalLine = !G ? '' : s.doorOpen ? '🚪 Find the door and enter!' : '🎯 ' + goalText(G).replace(/<\/?b>/g, '').replace(/ \(pizza.*?\)/, '');
+  const goalLine = !G ? '' : s.doorOpen ? '🚪 Reach the gate!' : '🎯 ' + goalText(G).replace(/<\/?b>/g, '').replace(/ \(pizza.*?\)/, '');
   if (hudCache.goalLine !== goalLine) { hudCache.goalLine = goalLine; setText('#hud-goal', goalLine); }
+  $('#hud-goal').classList.toggle('go', !!s.doorOpen);
   if (G) {
     const have = { fruit: s.food, special: s.special, mover: s.mover };
     let need = 0, got = 0;
@@ -424,9 +422,6 @@ function updateHud(dt) {
   timer.classList.toggle('hidden', s.timeLeft === null);
   if (s.timeLeft !== null) setText('#hud-timer', `⏱ ${Math.ceil(s.timeLeft)}`);
   $('#sprint-badge').classList.toggle('on', !!s.sprint);
-
-  minimapT -= dt;
-  if (minimapT <= 0) { minimapT = .1; game.drawMinimap(mmCtx, mmCanvas.width); }
 
   effectsT -= dt;
   if (effectsT <= 0) {
